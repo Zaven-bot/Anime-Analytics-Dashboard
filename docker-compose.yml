@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: anime_postgres
+    environment:
+      POSTGRES_DB: anime_dashboard
+      POSTGRES_USER: anime_user
+      POSTGRES_PASSWORD: anime_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist DB data
+      - ./infra/sql/init.sql:/docker-entrypoint-initdb.d/init.sql # Run init script on boot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anime_user -d anime_dashboard"] # Check if DB is ready
+      interval: 5s # Run check every 5 seconds
+      timeout: 5s # Consider it failed if it takes longer than 5 seconds
+      retries: 5 # Try 5 times before marking container as unhealthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: anime_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: anime_backend
+    environment:
+      - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  etl:
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
+    container_name: anime_etl
+    environment:
+      - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
+      - REDIS_URL=redis://redis:6379
+      - JIKAN_BASE_URL=https://api.jikan.moe/v4
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./etl:/app
+    # ETL will run as a cron job or on-demand, not continuously
+    profiles:
+      - etl # "docker compose --profile etl up" to run
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: anime_frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Overrides host node_modules to let container manage its own
+    command: npm start # Start React development server
+    # npm run build # Uncomment for prod build
+
+volumes:
+  postgres_data:
+  redis_data:

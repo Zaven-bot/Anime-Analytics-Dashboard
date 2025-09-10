@@ -1,0 +1,23 @@
+# Local development overrides
+services:
+  backend:
+    # Mount source code for hot reload
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True # Enable debug mode
+      - LOG_LEVEL=DEBUG # Verbose logging for development
+
+  etl:
+    # Mount source code for development
+    volumes:
+      - ./etl:/app
+    environment:
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+
+  frontend:
+    # Enable hot reload for React
+    environment:
+      - CHOKIDAR_USEPOLLING=true # File watching for Docker, no volume necessary
+      - FAST_REFRESH=true # Enable React Fast Refresh
