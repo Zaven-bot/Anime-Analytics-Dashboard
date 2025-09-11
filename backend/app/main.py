@@ -24,6 +24,9 @@ from src.loaders.database import DatabaseLoader
 # Import routers
 from .routers import analytics, health
 
+import logging
+logging.basicConfig(level=logging.INFO)  # Add this line
+
 # Configure structured logging
 structlog.configure(
     processors=[
@@ -49,6 +52,8 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI):
     # Startup logic
     logger.info("AnimeDashboard API starting up")
+    print("LIFESPAN STARTING")  # Add this
+
     try:
         db_loader = DatabaseLoader()
         if db_loader.test_connection():
@@ -58,14 +63,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("Failed to initialize database connection", error=str(e))
 
-    settings = get_settings()
-    await connect_redis(settings.redis_url)
+    try:
+        settings = get_settings()
+        await connect_redis(settings.redis_url)
+    except Exception as e:
+        logger.error("Failed to initialize Redis connection", error=str(e))
 
     yield  # App runs here
 
     # Shutdown logic
     logger.info("AnimeDashboard API shutting down")
     await disconnect_redis()
+    print("LIFESPAN ENDING")  # Add this
 
 # Initialize FastAPI app
 app = FastAPI(

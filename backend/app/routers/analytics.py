@@ -5,9 +5,12 @@ Serves aggregated analytics data from the ETL pipeline
 
 import sys
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional
+from ..services.redis_client import get_redis
 import structlog
+import time
+from functools import wraps
 
 # Add ETL source to Python path
 etl_path = Path(__file__).parent.parent.parent.parent / "etl"
@@ -28,11 +31,29 @@ from ..models.responses import (
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
-# Initialize analytics service
-analytics_service = AnalyticsService()
+# Time caching decorator
+# def log_timing(operation_name: str):
+#     """Simple decorator to log operation timing"""
+#     def decorator(func):
+#         @wraps(func)
+#         async def wrapper(*args, **kwargs):
+#             start = time.time()
+#             result = await func(*args, **kwargs)
+#             duration = round((time.time() - start) * 1000, 2)  # Convert to milliseconds
+#             logger.info(f"{operation_name} completed", duration_ms=duration)
+#             return result
+#         return wrapper
+#     return decorator
+
+async def get_analytics_service(
+        redis_client = Depends(get_redis)  # Inject Redis client dependency
+) -> AnalyticsService:
+    return AnalyticsService(redis_client=redis_client)
+
 
 @router.get("/stats/overview", response_model=DatabaseStatsResponse)
-async def get_database_overview():
+# @log_timing("database_stats_endpoint")  # Add this line
+async def get_database_overview(analytics_service: AnalyticsService = Depends(get_analytics_service)):
     """Get overall database statistics and snapshot information"""
     try:
         stats = await analytics_service.get_database_stats()
@@ -56,8 +77,9 @@ async def get_database_overview():
 
 @router.get("/anime/top-rated", response_model=TopAnimeResponse)
 async def get_top_rated_anime(
+    analytics_service: AnalyticsService = Depends(get_analytics_service), 
     limit: int = Query(10, ge=1, le=50, description="Number of anime to return"),
-    snapshot_type: str = Query("top", description="Snapshot type to query")
+    snapshot_type: str = Query("top", description="Snapshot type to query", )
 ):
     """Get top-rated anime from latest snapshots"""
     try:
@@ -78,6 +100,7 @@ async def get_top_rated_anime(
 
 @router.get("/anime/genre-distribution", response_model=GenreDistributionResponse)
 async def get_genre_distribution(
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
     snapshot_type: str = Query("top", description="Snapshot type to analyze")
 ):
     """Get genre distribution from latest snapshots with both coverage and frequency percentages"""
@@ -100,7 +123,9 @@ async def get_genre_distribution(
         raise HTTPException(status_code=500, detail=f"Failed to retrieve genre distribution: {str(e)}")
 
 @router.get("/trends/seasonal", response_model=SeasonalTrendsResponse)
-async def get_seasonal_trends():
+async def get_seasonal_trends(
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
+):
     """Get seasonal anime trends (current vs upcoming)"""
     try:
         trends_data = await analytics_service.get_seasonal_trends()
@@ -118,7 +143,9 @@ async def get_seasonal_trends():
         raise HTTPException(status_code=500, detail=f"Failed to retrieve seasonal trends: {str(e)}")
 
 @router.get("/health")
-async def analytics_health():
+async def analytics_health(
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
+):
     """Analytics service health check"""
     try:
         # Test database connection through analytics service

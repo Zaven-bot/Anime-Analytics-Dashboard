@@ -98,3 +98,21 @@ Goal: Get a working pipeline: ETL grabs Jikan data → store snapshots in Postgr
 **Key Debugging & Fixes:**
 - Identified and resolved JSON serialization issues for JSONB database fields
 - Fixed misleading load statistics reporting (successful_inserts vs. successful_updates). Debugged API response duplicates (25 requested → 23 unique records) - working as intended
+
+### Day 4 — Backend API & Redis Caching Integration
+
+**Tasks Completed:**
+- Refactored backend to use FastAPI dependency injection for Redis, following production-ready patterns (lifecycle management, no global singletons)
+- Implemented Redis caching for analytics endpoints (database stats, genre distribution, top-rated anime, seasonal trends)
+- Configured per-endpoint cache TTLs for optimal freshness and performance
+- All cache keys and TTLs are domain-specific and documented in code
+- Startup/shutdown lifecycle for Redis connection managed via FastAPI lifespan
+- AnalyticsService now receives Redis client via DI, enabling easier testing and future extensibility
+- Verified API endpoints return correct data and cache hits/misses are logged
+- All backend endpoints (analytics, health) are working and documented in Swagger UI
+
+**Key Design Decisions:**
+- Pure dependency injection for Redis (no global state)
+- Async Redis client for non-blocking cache operations
+- Caching logic is encapsulated in the analytics service, but Redis client is managed at the app level
+- Maintained testability and production best practices for future scaling

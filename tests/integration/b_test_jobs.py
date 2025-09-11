@@ -13,7 +13,7 @@ from src.extractors.jikan import JikanExtractor
 from src.transformers.anime import AnimeTransformer
 from src.loaders.database import DatabaseLoader
 from src.extractors.jikan import JikanRateLimiter
-from tests.integration.a_test_connections import TestConnections
+from a_test_connections import TestConnections
 from datetime import date
 
 async def test_etl_job(job_name: str, rate_limiter: JikanRateLimiter):

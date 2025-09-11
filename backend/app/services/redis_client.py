@@ -32,7 +32,8 @@ async def connect_redis(redis_url: str) -> redis.Redis:
         return _redis_client
     except Exception as e:
         logger.error("Failed to connect to Redis", error=str(e), url=redis_url)
-        redis_client=None
+        _redis_client=None
+        raise
 
 async def disconnect_redis():
     """Close Redis connection"""
