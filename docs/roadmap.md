@@ -14,7 +14,7 @@ Goal: Get a working pipeline: ETL grabs Jikan data → store snapshots in Postgr
 - Added comprehensive README.md with setup instructions
 - Locked in stack choices:
   - ETL: Python + SQLAlchemy + Pydantic + tenacity (retry/backoff)
-  - Backend: FastAPI with PostgreSQL + Redis connection
+  - Backend: FastAPI with PostgreSQL + Redis connecti
   - Frontend: React + Recharts for visualizations
 - Created docker-compose.yml with services: postgres, redis, etl, backend, frontend
 - Added docker-compose.override.yml for local development hot reload
@@ -64,3 +64,37 @@ Goal: Get a working pipeline: ETL grabs Jikan data → store snapshots in Postgr
 - Implemented edge case testing: invalid data, network failures, validation errors
 - Test coverage exceeds 70% requirement (99% code coverage achieved)
 - All 64 unit tests passing with structured error handling validation
+
+### Day 3 — Integration Testing & End-to-End Verification
+
+**Tasks Completed:**
+- Built focused integration test suite in `tests/integration/` directory with clear separation of concerns
+- **Connection Testing** (`a_test_connections.py`): 
+  - Database connectivity verification with schema validation
+  - Jikan API connectivity testing with response structure validation
+  - Standalone executable for quick health checks
+- **ETL Pipeline Testing** (`b_test_jobs.py`):
+  - End-to-end ETL job validation (Extract → Transform → Load)
+  - Individual job testing with detailed progress reporting
+  - Concurrent testing of all ETL jobs with proper rate limiting
+  - Comprehensive error reporting with load statistics breakdown
+- **Database Schema Verification** (`c_db_check.py`):
+  - Streamlined database schema validation script
+  - Data distribution analysis by snapshot type
+  - Sample data verification with top-scoring anime display
+
+**Rate Limiting Enhancement:**
+- Implemented `JikanRateLimiter` class (`etl/src/extractors/rate_limiter.py`) for concurrent job safety
+- Added async lock mechanism to prevent API rate limit violations during parallel job execution
+- Configurable delay settings (1.5s default) to respect Jikan API limits
+- Integrated rate limiter across all ETL components for consistent behavior
+
+**Integration Test Results:**
+- All connection tests pass: Database schema validation and API connectivity
+- All ETL jobs execute successfully, checking for load with proper upsert tracking
+- Concurrent job execution works reliably without rate limit violations
+- Fixed database loader reporting to distinguish between new inserts vs. successful updates
+
+**Key Debugging & Fixes:**
+- Identified and resolved JSON serialization issues for JSONB database fields
+- Fixed misleading load statistics reporting (successful_inserts vs. successful_updates). Debugged API response duplicates (25 requested → 23 unique records) - working as intended
