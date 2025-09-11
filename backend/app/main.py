@@ -7,6 +7,7 @@ import sys
 import os
 from pathlib import Path
 from contextlib import asynccontextmanager
+from .services.redis_client import connect_redis, disconnect_redis
 
 # Add ETL source to Python path so we can import existing components
 etl_path = Path(__file__).parent.parent.parent / "etl"
@@ -57,10 +58,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("Failed to initialize database connection", error=str(e))
 
+    settings = get_settings()
+    await connect_redis(settings.redis_url)
+
     yield  # App runs here
 
     # Shutdown logic
     logger.info("AnimeDashboard API shutting down")
+    await disconnect_redis()
 
 # Initialize FastAPI app
 app = FastAPI(

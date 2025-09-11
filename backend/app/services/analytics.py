@@ -9,7 +9,7 @@ from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 import json
 import structlog
-import redis
+import redis.asyncio as redis
 
 # Add ETL source to Python path
 etl_path = Path(__file__).parent.parent.parent.parent / "etl"
@@ -24,19 +24,16 @@ logger = structlog.get_logger(__name__)
 class AnalyticsService:
     """
     Analytics service that extends DatabaseLoader with read-only analytics queries.
-    Reuses existing database connection and patterns from ETL.
+    Uses dependency injection for Redis client.
     """
     
-    def __init__(self):
+    def __init__(self, redis_client: Optional[redis.Redis] = None):
         self.db_loader = DatabaseLoader()
         self.engine = self.db_loader.engine
         self.SessionLocal = self.db_loader.SessionLocal
+        self.redis_client = redis_client
         
-        # Initialize Redis client
-        settings = self.db_loader.settings
-        self.redis_client = redis.from_url(settings.redis_url, decode_responses=True)
-        
-        # Cache TTL settings (in seconds)
+        # Cache TTL settings (in seconds) - domain-specific
         self.cache_ttl = {
             "database_stats": 300,      # 5 minutes
             "top_rated": 600,           # 10 minutes 
@@ -46,44 +43,55 @@ class AnalyticsService:
     
     def _get_cache_key(self, prefix: str, **kwargs) -> str:
         """Generate consistent cache keys"""
-        key_parts = [prefix]
+        key_parts = [f"anime:{prefix}"]
         for key, value in sorted(kwargs.items()):
             key_parts.append(f"{key}:{value}")
         return ":".join(key_parts)
     
-    def _get_cached_data(self, cache_key: str) -> Optional[Dict[str, Any]]:
+    async def _get_cached_data(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """Get data from cache"""
+        if not self.redis_client:
+            logger.debug("Redis client not available, skipping cache")
+            return None
+            
         try:
-            cached_data = self.redis_client.get(cache_key)
+            cached_data = await self.redis_client.get(cache_key)
             if cached_data:
+                logger.info("Cache hit", cache_key=cache_key)
                 return json.loads(cached_data)
+            else:
+                logger.info("Cache miss", cache_key=cache_key)
+                return None
         except Exception as e:
             logger.warning("Cache read failed", cache_key=cache_key, error=str(e))
-        return None
+            return None
     
-    def _set_cached_data(self, cache_key: str, data: Dict[str, Any], ttl: int):
+    async def _set_cached_data(self, cache_key: str, data: Dict[str, Any], ttl: int):
         """Set data in cache with TTL"""
+        if not self.redis_client:
+            logger.debug("Redis client not available, skipping cache write")
+            return
+            
         try:
-            self.redis_client.setex(
+            await self.redis_client.setex(
                 cache_key, 
                 ttl, 
                 json.dumps(data, default=str)  # default=str handles dates
             )
+            logger.info("Data cached", cache_key=cache_key, ttl=ttl)
         except Exception as e:
             logger.warning("Cache write failed", cache_key=cache_key, error=str(e))
     
-    def get_database_stats(self) -> Dict[str, Any]:
-        """Get overall database statistics (cached)"""
-        cache_key = self._get_cache_key("db_stats")
+    async def get_database_stats(self) -> Dict[str, Any]:
+        """Get overall database statistics (with caching)"""
+        cache_key = self._get_cache_key("database_stats")
         
         # Try cache first
-        cached_data = self._get_cached_data(cache_key)
+        cached_data = await self._get_cached_data(cache_key)
         if cached_data:
-            logger.info("Cache hit for database stats")
             return cached_data
         
         # Cache miss - query database
-        logger.info("Cache miss for database stats - querying database")
         session = self.SessionLocal()
         try:
             # Total snapshots
@@ -116,8 +124,8 @@ class AnalyticsService:
                 "unique_anime": self._get_unique_anime_count(session)
             }
             
-            # After getting results, cache them
-            self._set_cached_data(cache_key, result, self.cache_ttl["database_stats"])
+            # Cache the result
+            await self._set_cached_data(cache_key, result, self.cache_ttl["database_stats"])
             return result
             
         except Exception as e:
@@ -126,7 +134,7 @@ class AnalyticsService:
         finally:
             session.close()
     
-    def get_top_rated_anime(self, limit: int = 10, snapshot_type: str = "top") -> List[Dict[str, Any]]:
+    async def get_top_rated_anime(self, limit: int = 10, snapshot_type: str = "top") -> List[Dict[str, Any]]:
         """Get top-rated anime from latest snapshots"""
         session = self.SessionLocal()
         try:
@@ -180,18 +188,15 @@ class AnalyticsService:
         finally:
             session.close()
     
-    def get_genre_distribution(self, snapshot_type: str = "top") -> Dict[str, Any]:
-        """Get genre distribution from latest snapshots (cached - this is expensive!)"""
-        cache_key = self._get_cache_key("genre_dist", snapshot_type=snapshot_type)
-        
+    async def get_genre_distribution(self, snapshot_type: str = "top") -> Dict[str, Any]:
+        """Get genre distribution with both coverage and frequency percentages"""
+        cache_key = self._get_cache_key("genre_distribution", snapshot_type=snapshot_type)
         # Try cache first
-        cached_data = self._get_cached_data(cache_key)
+        cached_data = await self._get_cached_data(cache_key)
         if cached_data:
-            logger.info("Cache hit for genre distribution", snapshot_type=snapshot_type)
             return cached_data
         
         # Cache miss - run expensive query
-        logger.info("Cache miss for genre distribution - running expensive query", snapshot_type=snapshot_type)
         session = self.SessionLocal()
         try:
             # Get latest snapshot date
@@ -274,8 +279,8 @@ class AnalyticsService:
                 "snapshot_date": latest_date.isoformat()
             }
             
-            # After getting results, cache them (longer TTL for expensive queries)
-            self._set_cached_data(cache_key, result, self.cache_ttl["genre_distribution"])
+            # Cache the expensive result with longer TTL
+            await self._set_cached_data(cache_key, result, self.cache_ttl["genre_distribution"])
             return result
             
         except Exception as e:
@@ -284,8 +289,14 @@ class AnalyticsService:
         finally:
             session.close()
     
-    def get_seasonal_trends(self) -> Dict[str, Any]:
+    async def get_seasonal_trends(self) -> Dict[str, Any]:
         """Get seasonal anime trends"""
+        cache_key = self._get_cache_key("seasonal_trends")
+        # Try cache first
+        cached_data = await self._get_cached_data(cache_key)
+        if cached_data:
+            return cached_data
+
         session = self.SessionLocal()
         try:
             query = text("""
@@ -310,10 +321,13 @@ class AnalyticsService:
                     "latest_date": row.latest_date.isoformat() if row.latest_date else None
                 })
             
-            return {
+            result ={
                 "trends": trends,
                 "total_seasons": len(trends)
             }
+
+            await self._set_cached_data(cache_key, result, self.cache_ttl["seasonal_trends"])
+            return result
             
         except Exception as e:
             logger.error("Failed to get seasonal trends", error=str(e))
