@@ -293,7 +293,6 @@ class AnalyticsService:
         """Get seasonal anime trends by actual seasons and years with comprehensive metrics"""
         cache_key = self._get_cache_key("seasonal_trends")
         
-        await self.redis_client.delete("anime:seasonal_trends")
         # Try cache first
         cached_data = await self._get_cached_data(cache_key)
         if cached_data:

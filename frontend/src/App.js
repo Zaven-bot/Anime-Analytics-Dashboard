@@ -57,7 +57,7 @@ function App() {
           {/* Welcome Section */}
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-white mb-2">
-              Welcome to the Anime Data Universe! 🌟
+              Welcome to my Anime Data Dashboard!
             </h2>
             <p className="text-slate-400 max-w-2xl mx-auto">
               Dive into comprehensive analytics covering thousands of anime titles, 
