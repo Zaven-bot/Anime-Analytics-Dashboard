@@ -53,6 +53,7 @@ ETL_JOBS = {
             "order_by": "score",
             "sort": "desc",
             "limit": 25,
+            "rating": ["g", "pg13", "r17", "r", None], # Exclude "pg" (children) and "rx" (adult)
             "status": "complete"  # Only completed anime for top rankings
         },
         "max_pages": 2,  # NEW: To get 50 total (25 * 2 pages)
@@ -62,24 +63,26 @@ ETL_JOBS = {
     "seasonal_current": {
         "endpoint": "/anime",
         "params": {
-            "order_by": "popularity",
+            "order_by": "score",
             "sort": "desc", 
             "limit": 25,
+            "rating": ["g", "pg13", "r17", "r", None], # Exclude "pg" (children) and "rx" (adult)
             "status": "airing"  # Currently airing
         },
         "snapshot_type": "seasonal_current",
-        "max_pages": 1, # Only need 25 for seasonal
+        "max_pages": None,
         "description": "Currently airing seasonal anime"
     },
     "seasonal_upcoming": {
         "endpoint": "/anime",
         "params": {
-            "order_by": "popularity",
+            "order_by": "score",
             "sort": "desc",
             "limit": 25,
+            "rating": ["g", "pg13", "r17", "r", None], # Exclude "pg" (children) and "rx" (adult)
             "status": "upcoming"
         },
-        "max_pages": 1,
+        "max_pages": None,
         "snapshot_type": "upcoming",
         "description": "Upcoming anime releases"
     },
@@ -87,16 +90,16 @@ ETL_JOBS = {
         "endpoint": "/anime",
         "params": {
             "type": "movie",
-            "order_by": "popularity",
+            "order_by": "score",
+            "rating": ["g", "pg13", "r17", "r", None], # Exclude "pg" (children) and "rx" (adult)
             "sort": "desc",
-            "limit": 20
+            "limit": 25
         },
         "max_pages": 1,
         "snapshot_type": "popular_movies",
         "description": "Popular anime movies"
     }
 }
-
 
 def get_settings() -> ETLSettings:
     """Get ETL settings instance"""

@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import AnimeAnalyticsAPI from '../lib/api';
-import { Palette, BarChart3, PieChart as PieChartIcon, RefreshCw, AlertCircle, Eye, Hash } from 'lucide-react';
+import { Palette, BarChart3, PieChart as PieChartIcon, RefreshCw, AlertCircle, Hash, Percent, Eye } from 'lucide-react';
 
 const GenreChart = () => {
   const [data, setData] = useState(null);
@@ -12,13 +12,40 @@ const GenreChart = () => {
   const [error, setError] = useState(null);
   const [selectedType, setSelectedType] = useState('top');
   const [chartType, setChartType] = useState('bar');
-  const [viewMode, setViewMode] = useState('anime'); // 'anime' or 'mention'
+  const [dataView, setDataView] = useState('raw'); // 'raw', 'coverage', 'frequency'
 
   const snapshotTypes = [
     { value: 'top', label: 'Top Rated' },
     { value: 'seasonal_current', label: 'Airing' },
     { value: 'upcoming', label: 'Upcoming' },
     { value: 'popular_movies', label: 'Movies' },
+  ];
+
+  const dataViews = [
+    { 
+      value: 'raw', 
+      label: 'Raw Counts', 
+      icon: Hash, 
+      description: 'Number of anime with each genre',
+      dataKey: 'anime_count',
+      valueLabel: 'Anime Count'
+    },
+    { 
+      value: 'coverage', 
+      label: 'Coverage %', 
+      icon: Eye, 
+      description: 'Percentage of anime with each genre',
+      dataKey: 'anime_percentage',
+      valueLabel: 'Coverage %'
+    },
+    { 
+      value: 'frequency', 
+      label: 'Frequency %', 
+      icon: Percent, 
+      description: 'Percentage of all genre mentions',
+      dataKey: 'mention_percentage',
+      valueLabel: 'Frequency %'
+    },
   ];
 
   // Anime-inspired color palette
@@ -51,9 +78,9 @@ const GenreChart = () => {
     setSelectedType(type);
   };
 
-  const handleViewModeChange = (mode) => {
-    console.log('Changing view mode to:', mode);
-    setViewMode(mode);
+  const handleDataViewChange = (view) => {
+    console.log('Changing data view to:', view);
+    setDataView(view);
   };
 
   const handleChartTypeChange = (type) => {
@@ -61,31 +88,54 @@ const GenreChart = () => {
     setChartType(type);
   };
 
+  const getCurrentDataView = () => {
+    return dataViews.find(view => view.value === dataView);
+  };
+
   const getChartData = () => {
     if (!data?.genres) return [];
+    
+    const currentView = getCurrentDataView();
     
     return data.genres
       .slice(0, 15) // Top 15 genres
       .map((genre, index) => ({
         ...genre,
-        value: viewMode === 'anime' ? genre.anime_count : genre.mention_count,
-        percentage: viewMode === 'anime' ? genre.anime_percentage : genre.mention_percentage,
+        value: genre[currentView.dataKey],
         fill: colors[index % colors.length]
       }));
+  };
+
+  const formatValue = (value) => {
+    const currentView = getCurrentDataView();
+    if (currentView.value === 'raw') {
+      return value.toLocaleString();
+    } else {
+      return `${value.toFixed(1)}%`;
+    }
   };
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      const currentView = getCurrentDataView();
+      
       return (
         <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-lg">
           <p className="text-white font-semibold">{label}</p>
           <p className="text-anime-blue">
-            {viewMode === 'anime' ? 'Anime Count' : 'Mentions'}: {data.value}
+            {currentView.valueLabel}: {formatValue(data.value)}
           </p>
-          <p className="text-anime-pink">
-            Percentage: {data.percentage.toFixed(1)}%
-          </p>
+          {currentView.value === 'raw' && (
+            <>
+              <p className="text-anime-pink">
+                Coverage: {data.anime_percentage.toFixed(1)}%
+              </p>
+              <p className="text-anime-purple">
+                Frequency: {data.mention_percentage.toFixed(1)}%
+              </p>
+            </>
+          )}
         </div>
       );
     }
@@ -125,60 +175,56 @@ const GenreChart = () => {
               Genre Distribution
             </CardTitle>
             <CardDescription className="text-slate-400">
-              {viewMode === 'anime' ? 'Anime coverage' : 'Genre frequency'} across categories
+              {getCurrentDataView()?.description}
             </CardDescription>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {/* View Mode Toggle */}
-            <div className="flex rounded-lg border border-slate-600 overflow-hidden">
-              <Button
-                variant={viewMode === 'anime' ? 'anime' : 'ghost'}
-                size="sm"
-                onClick={() => handleViewModeChange('anime')}
-                className="rounded-none"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Coverage
-              </Button>
-              <Button
-                variant={viewMode === 'mention' ? 'anime' : 'ghost'}
-                size="sm"
-                onClick={() => handleViewModeChange('mention')}
-                className="rounded-none"
-              >
-                <Hash className="h-4 w-4 mr-2" />
-                Frequency
-              </Button>
-            </div>
-            
-            {/* Chart Type Toggle */}
-            <div className="flex rounded-lg border border-slate-600 overflow-hidden">
-              <Button
-                variant={chartType === 'bar' ? 'anime' : 'ghost'}
-                size="sm"
-                onClick={() => handleChartTypeChange('bar')}
-                className="rounded-none"
-              >
-                <BarChart3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={chartType === 'pie' ? 'anime' : 'ghost'}
-                size="sm"
-                onClick={() => handleChartTypeChange('pie')}
-                className="rounded-none"
-              >
-                <PieChartIcon className="h-4 w-4" />
-              </Button>
-            </div>
+          
+          {/* Chart Type Toggle */}
+          <div className="flex rounded-lg border border-slate-600 overflow-hidden">
+            <Button
+              variant={chartType === 'bar' ? 'anime' : 'ghost'}
+              size="sm"
+              onClick={() => handleChartTypeChange('bar')}
+              className="rounded-none"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={chartType === 'pie' ? 'anime' : 'ghost'}
+              size="sm"
+              onClick={() => handleChartTypeChange('pie')}
+              className="rounded-none"
+            >
+              <PieChartIcon className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         
-        {/* Snapshot Type Selector */}
+        {/* Data View Selector */}
         <div className="flex flex-wrap gap-2 mt-4">
+          {dataViews.map((view) => {
+            const IconComponent = view.icon;
+            return (
+              <Button
+                key={view.value}
+                variant={dataView === view.value ? "anime" : "outline"}
+                size="sm"
+                onClick={() => handleDataViewChange(view.value)}
+                className="transition-all duration-300"
+              >
+                <IconComponent className="h-4 w-4 mr-2" />
+                {view.label}
+              </Button>
+            );
+          })}
+        </div>
+        
+        {/* Snapshot Type Selector */}
+        <div className="flex flex-wrap gap-2 mt-2">
           {snapshotTypes.map((type) => (
             <Button
               key={type.value}
-              variant={selectedType === type.value ? "anime" : "outline"}
+              variant={selectedType === type.value ? "anime" : "ghost"}
               size="sm"
               onClick={() => handleTypeChange(type.value)}
               className="transition-all duration-300"
@@ -222,6 +268,25 @@ const GenreChart = () => {
               </div>
             </div>
 
+            {/* Data View Explanation */}
+            <div className="bg-slate-800/30 rounded-lg p-3 text-sm text-slate-300 border border-slate-600">
+              <div className="flex items-center mb-2">
+                {React.createElement(getCurrentDataView().icon, { className: "h-4 w-4 mr-2 text-anime-blue" })}
+                <span className="font-semibold text-anime-blue">{getCurrentDataView().label}</span>
+              </div>
+              <p>{getCurrentDataView().description}</p>
+              {dataView === 'coverage' && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Shows what percentage of the {data.total_anime} anime in this snapshot include each genre.
+                </p>
+              )}
+              {dataView === 'frequency' && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Shows what percentage of the {data.total_genre_mentions} total genre tags belong to each genre.
+                </p>
+              )}
+            </div>
+
             {/* Chart */}
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -236,13 +301,20 @@ const GenreChart = () => {
                       textAnchor="end"
                       height={80}
                     />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: 12 }} />
+                    <YAxis 
+                      stroke="#94a3b8" 
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(value) => dataView === 'raw' ? value.toLocaleString() : `${value}%`}
+                    />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar 
                       dataKey="value" 
-                      fill="#8884d8"
                       radius={[4, 4, 0, 0]}
-                    />
+                    >
+                      {getChartData().map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 ) : (
                   <PieChart>
@@ -253,7 +325,7 @@ const GenreChart = () => {
                       outerRadius={100}
                       innerRadius={40}
                       dataKey="value"
-                      label={({ genre, percentage }) => `${genre} (${percentage.toFixed(1)}%)`}
+                      label={({ genre, value }) => `${genre} (${formatValue(value)})`}
                       labelLine={false}
                     >
                       {getChartData().slice(0, 10).map((entry, index) => (
@@ -274,7 +346,9 @@ const GenreChart = () => {
                     className="w-3 h-3 rounded"
                     style={{ backgroundColor: genre.fill }}
                   />
-                  <span className="text-slate-300 truncate">{genre.genre}</span>
+                  <span className="text-slate-300 truncate">
+                    {genre.genre} ({formatValue(genre.value)})
+                  </span>
                 </div>
               ))}
             </div>

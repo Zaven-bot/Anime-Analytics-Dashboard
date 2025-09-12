@@ -126,7 +126,6 @@ async def get_genre_distribution(
 async def get_seasonal_trends(
     analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
-    """Get seasonal anime trends (current vs upcoming)"""
     try:
         trends_data = await analytics_service.get_seasonal_trends()
         
@@ -135,7 +134,7 @@ async def get_seasonal_trends(
         
         return SeasonalTrendsResponse(
             trends=trends,
-            total_seasons=trends_data["total_seasons"]
+            total_periods=trends_data["total_periods"]
         )
         
     except Exception as e:

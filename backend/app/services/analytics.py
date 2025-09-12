@@ -290,8 +290,10 @@ class AnalyticsService:
             session.close()
     
     async def get_seasonal_trends(self) -> Dict[str, Any]:
-        """Get seasonal anime trends"""
+        """Get seasonal anime trends by actual seasons and years with comprehensive metrics"""
         cache_key = self._get_cache_key("seasonal_trends")
+        
+        await self.redis_client.delete("anime:seasonal_trends")
         # Try cache first
         cached_data = await self._get_cached_data(cache_key)
         if cached_data:
@@ -300,30 +302,96 @@ class AnalyticsService:
         session = self.SessionLocal()
         try:
             query = text("""
+                WITH resolved_snapshots AS (
+                    SELECT 
+                        CASE
+                            WHEN snapshot_type = 'seasonal_current' THEN
+                                CASE
+                                    WHEN EXTRACT(MONTH FROM snapshot_date) BETWEEN 1 AND 3 THEN 'winter'
+                                    WHEN EXTRACT(MONTH FROM snapshot_date) BETWEEN 4 AND 6 THEN 'spring'
+                                    WHEN EXTRACT(MONTH FROM snapshot_date) BETWEEN 7 AND 9 THEN 'summer'
+                                    WHEN EXTRACT(MONTH FROM snapshot_date) BETWEEN 10 AND 12 THEN 'fall'
+                                END
+                            ELSE season
+                        END AS season,
+
+                        CASE
+                            WHEN snapshot_type = 'seasonal_current' THEN EXTRACT(YEAR FROM snapshot_date)::int
+                            ELSE year
+                        END AS year,
+
+                        score,
+                        scored_by,
+                        rank,
+                        popularity,
+                        members,
+                        favorites,
+                        snapshot_date
+                    FROM anime_snapshots
+                    WHERE season IS NOT NULL 
+                        AND year IS NOT NULL
+                        AND season IN ('winter', 'spring', 'summer', 'fall')
+                        AND snapshot_type IN ('seasonal_current', 'upcoming')
+                )
+
                 SELECT 
-                    snapshot_type,
-                    COUNT(*) as anime_count,
-                    MAX(snapshot_date) as latest_date
-                FROM anime_snapshots 
-                WHERE snapshot_type IN ('seasonal_current', 'upcoming')
-                GROUP BY snapshot_type
-                ORDER BY snapshot_type
+                    season,
+                    year,
+                    COUNT(*) AS anime_count,
+
+                    -- Averages
+                    AVG(score) AS avg_score,
+                    AVG(scored_by) AS avg_scored_by,
+                    AVG(rank) AS avg_rank,
+                    AVG(popularity) AS avg_popularity,
+                    AVG(members) AS avg_members,
+                    AVG(favorites) AS avg_favorites,
+
+                    -- Sums
+                    SUM(COALESCE(scored_by, 0)) AS total_scored_by,
+                    SUM(COALESCE(members, 0)) AS total_members,
+                    SUM(COALESCE(favorites, 0)) AS total_favorites,
+
+                    MAX(snapshot_date) AS latest_snapshot_date
+
+                FROM resolved_snapshots
+                GROUP BY season, year
+                HAVING COUNT(*) > 0
+                ORDER BY year,
+                    CASE season
+                        WHEN 'winter' THEN 1
+                        WHEN 'spring' THEN 2
+                        WHEN 'summer' THEN 3
+                        WHEN 'fall' THEN 4
+                    END
             """)
-            
+
             trends = []
             for row in session.execute(query):
-                season_name = "Current Season" if row.snapshot_type == "seasonal_current" else "Upcoming"
                 trends.append({
-                    "season": season_name,
-                    "type": row.snapshot_type,
+                    "season": row.season,
+                    "year": row.year,
                     "anime_count": row.anime_count,
-                    # "average_score": round(float(row.avg_score), 2) if row.avg_score else None,
-                    "latest_date": row.latest_date.isoformat() if row.latest_date else None
+                    
+                    # Averages - SQL AVG() already excludes NULLs, so these are clean
+                    "avg_score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
+                    "avg_scored_by": round(float(row.avg_scored_by), 0) if row.avg_scored_by is not None else None,
+                    "avg_rank": round(float(row.avg_rank), 0) if row.avg_rank is not None else None,
+                    "avg_popularity": round(float(row.avg_popularity), 0) if row.avg_popularity is not None else None,
+                    "avg_members": round(float(row.avg_members), 0) if row.avg_members is not None else None,
+                    "avg_favorites": round(float(row.avg_favorites), 0) if row.avg_favorites is not None else None,
+                    
+                    # Totals - COALESCE in SQL ensures these are never NULL
+                    "total_scored_by": int(row.total_scored_by),  # No null check needed
+                    "total_members": int(row.total_members),      # No null check needed
+                    "total_favorites": int(row.total_favorites),  # No null check needed
+                    
+                    "latest_snapshot_date": row.latest_snapshot_date.isoformat() if row.latest_snapshot_date else None
                 })
             
-            result ={
+            result = {
                 "trends": trends,
-                "total_seasons": len(trends)
+                "total_periods": len(trends)
             }
 
             await self._set_cached_data(cache_key, result, self.cache_ttl["seasonal_trends"])
