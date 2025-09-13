@@ -38,6 +38,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
       - REDIS_URL=redis://redis:6379
+      - TZ=UTC  # Add timezone for consistency
     ports:
       - "8000:8000"
     depends_on:
@@ -47,6 +48,7 @@ services:
         condition: service_healthy
     volumes:
       - ../../services/backend:/app
+      - ../../services/etl:/shared/etl  # Mount ETL code for backend to import
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   etl:
@@ -58,6 +60,7 @@ services:
       - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
       - REDIS_URL=redis://redis:6379
       - JIKAN_BASE_URL=https://api.jikan.moe/v4
+      - TZ=UTC  # Add timezone for consistency
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,6 +83,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - JIKAN_BASE_URL=https://api.jikan.moe/v4
       - JIKAN_RATE_LIMIT_DELAY=1.0
+      - TZ=UTC  # Critical: scheduler needs timezone
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,7 +102,7 @@ services:
       dockerfile: Dockerfile
     container_name: anime_frontend
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=http://localhost:8000  # Browser needs localhost, not service name
     ports:
       - "3000:3000"
     depends_on:

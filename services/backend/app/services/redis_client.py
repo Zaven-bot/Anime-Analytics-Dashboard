@@ -9,7 +9,9 @@ from typing import Optional
 import redis.asyncio as redis
 import structlog
 
-etl_path = Path(__file__).parent.parent.parent.parent / "etl"
+# ETL config import
+import os
+etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.config import get_settings
 

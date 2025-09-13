@@ -22,8 +22,9 @@ from ..models.responses import (
 from ..services.analytics import AnalyticsService
 from ..services.redis_client import get_redis
 
-# Add ETL source to Python path
-etl_path = Path(__file__).parent.parent.parent.parent / "etl"
+# Add ETL path to sys.path to import ETL database loader
+import os
+etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 
 

@@ -1,10 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api/v1/analytics';
+// Use environment variable for API URL, fallback to localhost for local development
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const FULL_API_URL = `${API_BASE_URL}/api/v1/analytics`;
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: FULL_API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

@@ -8,7 +8,8 @@ from fastapi import APIRouter, HTTPException
 from ..services.redis_client import get_redis_client
 
 # Add ETL source to Python path
-etl_path = Path(__file__).parent.parent.parent.parent / "etl"
+import os
+etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.config import get_settings
 from src.loaders.database import DatabaseLoader

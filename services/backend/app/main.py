@@ -13,7 +13,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import existing ETL components
-etl_path = Path(__file__).parent.parent.parent / "etl"
+import os
+etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.config import get_settings
 from src.loaders.database import DatabaseLoader
