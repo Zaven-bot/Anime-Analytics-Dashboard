@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 120
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    .pytest_cache,
+    node_modules,
+    build,
+    dist,
+    services/frontend
+ignore = 
+    E203,
+    W503
+per-file-ignores =
+    tests/*:F401,F811
+    services/*/src/models/*:F401
+    services/backend/app/main.py:E402
+    services/backend/app/routers/*:E402
+    services/backend/app/services/*:E402
+    services/etl/main.py:E402

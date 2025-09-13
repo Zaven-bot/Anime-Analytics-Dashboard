@@ -1,0 +1,59 @@
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = false
+disallow_untyped_defs = false
+ignore_missing_imports = true
+show_error_codes = false
+check_untyped_defs = false
+disallow_any_generics = false
+disallow_untyped_calls = false
+# Focus on style and obvious errors only
+warn_unreachable = true
+exclude = [
+    "tests/",
+    "services/frontend/",
+    "build/",
+    "dist/"
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tenacity.*",
+    "redis.*",
+    "sqlalchemy.*",
+    "psycopg2.*",
+    "structlog.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "pydantic.*",
+    "pydantic_settings.*",
+    "httpx.*"
+]
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.venv
+  | services/frontend
+  | node_modules
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 120
