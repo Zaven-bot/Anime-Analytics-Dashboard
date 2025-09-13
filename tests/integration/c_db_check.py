@@ -10,7 +10,7 @@ import sys
 import os
 
 # Add ETL src to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../etl'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/etl'))
 
 try:
     from src.config import get_settings
