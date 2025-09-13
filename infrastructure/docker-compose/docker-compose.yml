@@ -69,6 +69,29 @@ services:
     profiles:
       - etl # "docker compose --profile etl up" to run
 
+  # ETL Scheduler Service - Automated daily data collection
+  etl-scheduler:
+    build:
+      context: ../../services/etl
+      dockerfile: Dockerfile
+    container_name: anime_etl_scheduler
+    environment:
+      - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
+      - REDIS_URL=redis://redis:6379/0
+      - JIKAN_BASE_URL=https://api.jikan.moe/v4
+      - JIKAN_RATE_LIMIT_DELAY=1.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../services/etl:/app
+    command: python scheduler.py --daemon
+    restart: unless-stopped
+    profiles:
+      - scheduler  # "docker compose --profile scheduler up" to run scheduled ETL
+
   frontend:
     build:
       context: ../../services/frontend
