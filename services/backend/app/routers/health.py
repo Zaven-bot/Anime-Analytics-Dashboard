@@ -1,3 +1,5 @@
+# Add ETL source to Python path
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,8 +9,6 @@ from fastapi import APIRouter, HTTPException
 
 from ..services.redis_client import get_redis_client
 
-# Add ETL source to Python path
-import os
 etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.config import get_settings

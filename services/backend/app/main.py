@@ -4,6 +4,9 @@ FastAPI application that serves analytics data from the ETL pipeline.
 """
 
 import logging
+
+# Import existing ETL components
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,8 +15,6 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import existing ETL components
-import os
 etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.config import get_settings

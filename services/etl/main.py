@@ -9,18 +9,18 @@ import sys
 from datetime import date
 from typing import Any, Dict, cast
 
-import structlog
 from src.config import ETL_JOBS, get_settings
 from src.extractors.jikan import JikanExtractor
 from src.loaders.database import DatabaseLoader
-from src.transformers.anime import AnimeTransformer
 from src.logging_config import setup_logging
+from src.transformers.anime import AnimeTransformer
 
 # Add src to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 # SET UP LOGGING
 logger = setup_logging("etl.pipeline")
+
 
 class ETLPipeline:
     """

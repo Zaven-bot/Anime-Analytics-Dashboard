@@ -302,8 +302,6 @@ The frontend successfully demonstrates a complete anime analytics platform with 
 
 **Mock Data Accuracy:**
 - **Pydantic Validation**: Ensured all mock data passes actual Pydantic model validation
-
-**Development Environment Setup:**
 - **Environment Isolation**: Used `anime-backend` micromamba environment with pytest 8.4.2
 - **Testing Dependencies**: httpx, AsyncClient, pytest-asyncio, pytest-mock, pytest-cov
 - **Async Testing**: `@pytest.mark.asyncio` usage for FastAPI endpoint testing
@@ -316,8 +314,120 @@ The frontend successfully demonstrates a complete anime analytics platform with 
 - **Integration Ready**: Tests validate actual API contracts and response formats
 
 **Final Results:**
-- **Perfect Success Rate**: 72/72 tests passing across all 5 test suites
+- **Success**: 72/72 tests passing across all 5 test suites
 - **Zero Flaky Tests**: Consistent test execution with proper mock isolation
 - **Production Ready**: Tests validate actual API behavior with realistic scenarios  
 - **Maintainable**: Clear test structure with comprehensive documentation and examples
 - **CI/CD Compatible**: Fast execution, no external dependencies, clear failure reporting
+
+### Day 3 — Docker Compose Infrastructure & Deployment Orchestration
+
+**Complete Docker Containerization:**
+- **Multi-Service Docker Architecture**: Successfully containerized all services with proper networking and dependency management
+- **Cross-Service Dependencies Resolved**: Fixed backend service imports of ETL components using shared volume mounts:
+  ```yaml
+  volumes:
+    - ../../services/etl:/shared/etl  # Mount ETL code for backend to import
+  ```
+- **Environment Variable Management**: Configured proper timezone (`TZ=UTC`) and database URLs across all services
+- **Health Check Integration**: All services use health checks for reliable startup orchestration
+- **Volume Persistence**: External volumes for PostgreSQL and Redis data persistence
+
+**Docker Compose Service Profiles:**
+- **Core Services** (no profile): `postgres`, `redis`, `backend`, `frontend`
+- **ETL Profile**: Manual ETL job execution capability
+- **Scheduler Profile**: Automated daily ETL scheduling service
+- **Development Overrides**: Hot reload and debug configurations (currently disabled)
+
+**Frontend-Backend Integration:**
+- **Network Configuration**: Fixed Docker networking for React frontend to backend API communication
+- **Environment Variables**: Proper `REACT_APP_API_URL` configuration for container vs. browser context
+- **API Integration**: Frontend successfully connects to backend through Docker port mapping (`localhost:8000`)
+
+**Docker Compose Execution Commands:**
+
+**1. Core Development Stack (Default):**
+```bash
+cd infrastructure/docker-compose
+docker compose up -d
+# Runs: postgres, redis, backend, frontend
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000
+```
+
+**2. With Automated ETL Scheduling:**
+```bash
+cd infrastructure/docker-compose
+docker compose --profile scheduler up -d
+# Runs: core services + etl-scheduler (automated daily ETL at 8 AM UTC)
+```
+
+**3. With Manual ETL Capability:**
+```bash
+cd infrastructure/docker-compose
+docker compose --profile etl up -d
+# Runs: core services + etl container for manual job execution
+# Execute ETL: docker compose exec etl python main.py
+```
+
+**4. Full Stack (All Services):**
+```bash
+cd infrastructure/docker-compose
+docker compose --profile etl --profile scheduler up -d
+# Runs: core services + manual ETL + automated scheduler
+```
+
+**5. Individual Service Management:**
+```bash
+# Start only database services
+docker compose up -d postgres redis
+
+# View logs for specific service
+docker compose logs -f backend
+
+# Execute commands in running containers
+docker compose exec etl python main.py
+docker compose exec backend python -m pytest
+
+# Stop all services
+docker compose down
+
+# Stop and remove volumes (full cleanup)
+docker compose down -v
+```
+
+**6. Development Overrides (Optional):**
+```bash
+# Enable hot reload and debug mode (rename docker-compose.override.disabled.yml)
+mv docker-compose.override.disabled.yml docker-compose.override.yml
+docker compose up -d
+```
+
+**Service Port Mapping:**
+- **Frontend**: `localhost:3000` (React development server)
+- **Backend**: `localhost:8000` (FastAPI with automatic reload)
+- **PostgreSQL**: `localhost:5433` (mapped from container port 5432)
+- **Redis**: `localhost:6379` (direct mapping)
+
+**Key Docker Architecture Decisions:**
+- **Shared Volumes**: ETL code mounted to backend container for cross-service imports
+- **Service Dependencies**: Proper `depends_on` with health check conditions
+- **Timezone Consistency**: UTC timezone across all services for reliable scheduling
+- **Network Isolation**: Services communicate via Docker Compose internal network
+- **External Volumes**: Data persistence across container restarts
+
+**Dockerfile Verification:**
+- **Backend Dockerfile**: ✅ Correct Python environment with FastAPI and uvicorn
+- **ETL Dockerfile**: ✅ Fixed main.py path (not src/main.py) with proper dependencies
+- **Frontend Dockerfile**: ✅ Node.js 18 with npm development server
+- **All Dockerfiles**: Optimized layer caching with requirements/package.json copied first
+
+**Production-Ready Features:**
+- **Health Checks**: All services have proper health check configurations
+- **Restart Policies**: ETL scheduler has `unless-stopped` restart policy
+- **Volume Management**: External named volumes for data persistence
+- **Environment Variables**: Proper secrets and configuration management
+- **Service Profiles**: Flexible deployment configurations for different environments
+
+The Docker Compose infrastructure provides a complete development and deployment environment with reliable service orchestration, proper networking, and flexible execution models for different use cases.
+

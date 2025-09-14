@@ -2,6 +2,8 @@
 Shared Redis client with FastAPI lifecycle management
 """
 
+# ETL config import
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -9,8 +11,6 @@ from typing import Optional
 import redis.asyncio as redis
 import structlog
 
-# ETL config import
-import os
 etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.config import get_settings

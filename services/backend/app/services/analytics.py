@@ -4,6 +4,9 @@ Extends DatabaseLoader with analytics-specific queries for the API
 """
 
 import json
+
+# Add ETL path to sys.path to import ETL modules
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
@@ -12,8 +15,6 @@ import redis.asyncio as redis
 import structlog
 from sqlalchemy import text
 
-# Add ETL path to sys.path to import ETL modules
-import os
 etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
 sys.path.append(str(etl_path))
 from src.loaders.database import DatabaseLoader
