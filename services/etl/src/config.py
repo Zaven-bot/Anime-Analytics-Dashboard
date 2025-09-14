@@ -5,8 +5,8 @@ Manages environment variables and ETL pipeline configuration.
 
 import os
 
-from pydantic import ConfigDict, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ETLSettings(BaseSettings):
@@ -33,7 +33,7 @@ class ETLSettings(BaseSettings):
     seasonal_anime_limit: int = 25
     upcoming_anime_limit: int = 25
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
     )
