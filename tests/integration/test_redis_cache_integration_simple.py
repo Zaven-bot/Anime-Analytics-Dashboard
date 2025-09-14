@@ -34,7 +34,7 @@ class TestRedisCacheIntegration:
         
         # Clear test keys
         await self.redis_client.flushdb()
-        print("✅ Redis setup complete")
+        print("Redis setup complete")
     
     async def test_basic_redis_operations(self):
         """Test basic Redis set/get operations."""
@@ -47,7 +47,7 @@ class TestRedisCacheIntegration:
         ttl = await self.redis_client.ttl("test:key")
         assert 0 < ttl <= 30
         
-        print("✅ Basic Redis operations test passed")
+        print("Basic Redis operations test passed")
     
     async def test_cache_with_json_data(self):
         """Test caching with JSON-like data."""
@@ -69,7 +69,7 @@ class TestRedisCacheIntegration:
         assert cached_data["total_anime"] == 1000
         assert cached_data["cache_hit"] is True
         
-        print("✅ JSON cache operations test passed")
+        print("JSON cache operations test passed")
     
     async def test_cache_expiration(self):
         """Test cache expiration behavior."""
@@ -87,7 +87,7 @@ class TestRedisCacheIntegration:
         value = await self.redis_client.get("test:expire")
         assert value is None
         
-        print("✅ Cache expiration test passed")
+        print("Cache expiration test passed")
     
     async def test_concurrent_cache_access(self):
         """Test concurrent access to cache."""
@@ -104,7 +104,7 @@ class TestRedisCacheIntegration:
         # All operations should succeed
         assert all(results)
         
-        print("✅ Concurrent cache access test passed")
+        print("Concurrent cache access test passed")
 
 
 async def run_tests():
@@ -123,10 +123,10 @@ async def run_tests():
         await test_instance.test_cache_expiration()
         await test_instance.test_concurrent_cache_access()
         
-        print("🎉 All Redis cache integration tests passed!")
+        print("All Redis cache integration tests passed!")
         
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"Test failed: {e}")
         import traceback
         traceback.print_exc()
         raise

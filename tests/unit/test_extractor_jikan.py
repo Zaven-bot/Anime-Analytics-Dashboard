@@ -12,7 +12,7 @@ from tenacity import RetryError
 # Add ETL src to path for imports
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../etl'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/etl'))
 
 from src.extractors.jikan import JikanExtractor, JikanAPIError
 from src.models.jikan import JikanSearchResponse, JikanAnime
@@ -61,7 +61,7 @@ class TestJikanExtractor:
             
             await extractor._make_request('/anime', {})
             
-            mock_sleep.assert_called_once_with(extractor.rate_limit_delay)
+            mock_sleep.assert_called_once_with(extractor.rate_limiter.delay)
     
     @pytest.mark.asyncio
     async def test_429_rate_limit_handling(self, extractor):
@@ -250,7 +250,7 @@ class TestJikanExtractor:
             
             await extractor.fetch_by_job_config(MOCK_ETL_JOB_CONFIG)
             
-            mock_fetch.assert_called_once_with(MOCK_ETL_JOB_CONFIG['params'])
+            mock_fetch.assert_called_once_with(MOCK_ETL_JOB_CONFIG['params'], max_pages=None)
     
     @pytest.mark.asyncio
     async def test_fetch_by_job_config_unsupported_endpoint(self, extractor):

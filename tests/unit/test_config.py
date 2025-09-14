@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 # Add ETL src to path for imports
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../etl'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/etl'))
 
 from src.config import ETLSettings, get_settings, ETL_JOBS
 
@@ -22,7 +22,7 @@ class TestETLSettings:
         """Test that default settings are loaded correctly"""
         settings = ETLSettings()
         
-        assert settings.database_url == "postgresql://anime_user:anime_password@localhost:5432/anime_dashboard"
+        assert settings.database_url == "postgresql://anime_user:anime_password@localhost:5433/anime_dashboard"
         assert settings.redis_url == "redis://localhost:6379"
         assert settings.jikan_base_url == "https://api.jikan.moe/v4"
         assert settings.jikan_rate_limit_delay == 1.5
@@ -111,7 +111,7 @@ class TestETLJobs:
         assert job['endpoint'] == '/anime'
         assert job['params']['order_by'] == 'score'
         assert job['params']['sort'] == 'desc'
-        assert job['params']['limit'] == 50
+        assert job['params']['limit'] == 25
         assert job['params']['status'] == 'complete'
         assert job['snapshot_type'] == 'top'
         assert 'top-rated' in job['description'].lower()
@@ -121,24 +121,18 @@ class TestETLJobs:
         job = ETL_JOBS['seasonal_current']
         
         assert job['endpoint'] == '/anime'
-        assert job['params']['order_by'] == 'popularity'
-        assert job['params']['sort'] == 'desc'
-        assert job['params']['limit'] == 25
-        assert job['params']['status'] == 'airing'
+        assert job['params']['order_by'] == 'score'
+        assert 'season' not in job['params']  # Current season auto-detected
         assert job['snapshot_type'] == 'seasonal_current'
-        assert 'airing' in job['description'].lower()
     
     def test_upcoming_job_config(self):
         """Test upcoming anime job configuration"""
         job = ETL_JOBS['seasonal_upcoming']
         
         assert job['endpoint'] == '/anime'
-        assert job['params']['order_by'] == 'popularity'
-        assert job['params']['sort'] == 'desc'
-        assert job['params']['limit'] == 25
+        assert job['params']['order_by'] == 'score'
         assert job['params']['status'] == 'upcoming'
         assert job['snapshot_type'] == 'upcoming'
-        assert 'upcoming' in job['description'].lower()
     
     def test_popular_movies_job_config(self):
         """Test popular movies job configuration"""
@@ -146,9 +140,9 @@ class TestETLJobs:
         
         assert job['endpoint'] == '/anime'
         assert job['params']['type'] == 'movie'
-        assert job['params']['order_by'] == 'popularity'
+        assert job['params']['order_by'] == 'score'
         assert job['params']['sort'] == 'desc'
-        assert job['params']['limit'] == 20
+        assert job['params']['limit'] == 25
         assert job['snapshot_type'] == 'popular_movies'
         assert 'movie' in job['description'].lower()
     

@@ -433,3 +433,60 @@ docker compose up -d
 
 The Docker Compose infrastructure provides a complete development and deployment environment with reliable service orchestration, proper networking, and flexible execution models for different use cases.
 
+---
+
+## CI/CD Pipeline with Environment-Aware Integration Testing
+
+**Implementation:** GitHub Actions workflow (`.github/workflows/ci.yml`) with automatic environment detection and real service integration testing.
+
+### Key Features
+
+**🏠 Local Environment (Docker Compose):**
+- PostgreSQL on port 5433, database `anime_dashboard`
+- Redis on port 6379, database 0
+- Full dataset limits, 1.5s API rate limiting
+
+**🤖 GitHub Actions (Service Containers):**
+- PostgreSQL on port 5432, database `test_db` 
+- Redis on port 6379, database 1
+- Conservative limits, 2.0s API rate limiting
+
+**🧪 Environment-Aware Configuration:**
+```python
+# services/etl/src/config.py - Automatic detection
+if os.getenv('GITHUB_ACTIONS'):
+    database_url = "postgresql://test_user:test_password@localhost:5432/test_db"
+    redis_url = "redis://localhost:6379/1"
+    jikan_rate_limit_delay = 2.0  # Conservative for CI
+```
+
+### Pipeline Jobs
+
+1. **Code Quality** (non-blocking): flake8, black, mypy
+2. **Unit Tests**: 136+ tests with mocks, coverage reporting
+3. **Integration Tests**: Real PostgreSQL + Redis testing in both environments
+4. **Docker Builds**: All three services with health validation
+
+### Testing Commands
+
+```bash
+# Run all tests locally (needs Docker Compose running)
+python -m pytest tests/unit/ -v                    # Unit tests (work anywhere)
+python -m pytest tests/integration/ -v             # Integration tests (ETL pipeline)
+python tests/integration/test_api_db_integration.py # API endpoint tests
+python tests/integration/test_redis_cache_integration_simple.py # Redis cache tests
+
+# Check service health
+curl http://localhost:8000/health
+curl http://localhost:8000/analytics/database-stats
+```
+### Integration Test Coverage
+
+- **ETL Pipeline**: Complete data flow from Jikan API → PostgreSQL (6 tests)
+- **API Endpoints**: FastAPI health and analytics validation  
+- **Redis Caching**: Cache operations, expiration, concurrency
+- **Database Operations**: Schema validation, upserts, data persistence
+- **Cross-Service Communication**: Backend ↔ Database ↔ Redis
+
+**Result:** CI/CD with real integration testing that automatically adapts to local development vs GitHub Actions environments. Every push validates the complete system integration with actual PostgreSQL and Redis services, not just mocks.
+

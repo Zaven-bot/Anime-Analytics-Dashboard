@@ -16,6 +16,8 @@ from src.config import get_settings, ETL_JOBS
 from src.loaders.database import DatabaseLoader
 from src.extractors.jikan import JikanExtractor, JikanRateLimiter
 from src.transformers.anime import AnimeTransformer
+from src.models.jikan import JikanAnime
+
 from datetime import date
 
 
@@ -245,9 +247,20 @@ class TestETLDatabaseIntegration:
                 
                 # Intentionally corrupt some data to test error handling
                 if anime_list:
-                    corrupted_anime = anime_list[0].copy()
-                    corrupted_anime["mal_id"] = None  # Invalid mal_id
-                    anime_list.append(corrupted_anime)
+                    # Create corrupted anime data by modifying the model data
+                    original_anime = anime_list[0]
+                    corrupted_data = original_anime.model_dump()  # Convert to dict
+                    corrupted_data["mal_id"] = None  # Invalid mal_id
+                    
+                    # Try to create a new JikanAnime with invalid data
+                    # This should either fail validation or be handled gracefully
+                    try:
+                        corrupted_anime = JikanAnime(**corrupted_data)
+                        anime_list.append(corrupted_anime)
+                    except Exception as validation_error:
+                        # If Pydantic validation prevents creation, that's also valid behavior
+                        print(f"Pydantic validation prevented invalid data: {validation_error}")
+                        pass
                 
                 # Transform should handle invalid data
                 snapshots = self.transformer.transform_anime_list(
@@ -346,32 +359,32 @@ if __name__ == "__main__":
             test_instance.rate_limiter = JikanRateLimiter(delay=test_instance.settings.jikan_rate_limit_delay)
             
             # Run tests - create fresh extractor for each test to avoid client closure issues
-            print("\n📋 Test 1: Database Connection")
+            print("\nTest 1: Database Connection")
             await test_instance.test_database_connection_and_schema()
-            print("✅ Database connection test passed")
+            print("Database connection test passed")
             
-            print("\n📋 Test 2: ETL Job Execution")
+            print("\nTest 2: ETL Job Execution")
             test_instance.extractor = JikanExtractor(rate_limiter=test_instance.rate_limiter)
             test_instance.transformer = AnimeTransformer()
             await test_instance.test_single_etl_job_execution()
-            print("✅ ETL job execution test passed")
+            print("ETL job execution test passed")
             
-            print("\n📋 Test 3: Data Persistence")
+            print("\nTest 3: Data Persistence")
             test_instance.extractor = JikanExtractor(rate_limiter=test_instance.rate_limiter)  # Fresh extractor
             test_instance.transformer = AnimeTransformer()
             await test_instance.test_data_persistence_and_retrieval()
-            print("✅ Data persistence test passed")
+            print("Data persistence test passed")
             
-            print("\n📋 Test 4: Upsert Behavior")
+            print("\nTest 4: Upsert Behavior")
             test_instance.extractor = JikanExtractor(rate_limiter=test_instance.rate_limiter)  # Fresh extractor
             test_instance.transformer = AnimeTransformer()
             await test_instance.test_upsert_behavior()
-            print("✅ Upsert behavior test passed")
+            print("Upsert behavior test passed")
             
-            print("\n🎉 All ETL to Database integration tests passed!")
+            print("\nAll ETL to Database integration tests passed!")
             
         except Exception as e:
-            print(f"❌ Test failed: {e}")
+            print(f"Test failed: {e}")
             raise
     
     asyncio.run(run_tests())

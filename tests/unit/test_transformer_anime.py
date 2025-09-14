@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 # Add ETL src to path for imports
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../etl'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/etl'))
 
 from src.transformers.anime import AnimeTransformer, DataTransformationError
 from src.models.jikan import JikanAnime, AnimeSnapshot

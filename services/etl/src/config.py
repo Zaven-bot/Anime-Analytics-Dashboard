@@ -3,6 +3,7 @@ ETL Configuration and Settings
 Manages environment variables and ETL pipeline configuration.
 """
 
+import os
 from pydantic import ConfigDict, field_validator
 from pydantic_settings import BaseSettings
 
@@ -10,7 +11,7 @@ from pydantic_settings import BaseSettings
 class ETLSettings(BaseSettings):
     """ETL Pipeline Configuration"""
 
-    # Database
+    # Database - defaults adjust based on environment
     database_url: str = "postgresql://anime_user:anime_password@localhost:5433/anime_dashboard"
 
     # Redis
@@ -35,6 +36,27 @@ class ETLSettings(BaseSettings):
         env_file=".env",
         case_sensitive=False,
     )
+
+    def __init__(self, **kwargs):
+        """Initialize settings with environment-aware defaults"""
+        super().__init__(**kwargs)
+        
+        # Override defaults for GitHub Actions environment
+        if os.getenv('GITHUB_ACTIONS'):
+            # Use GitHub Actions service containers
+            if not os.getenv('DATABASE_URL'):
+                self.database_url = "postgresql://test_user:test_password@localhost:5432/test_db"
+            if not os.getenv('REDIS_URL'):  
+                self.redis_url = "redis://localhost:6379/1"  # Use database 1 for tests
+            
+            # Be more conservative with API calls in CI
+            if not os.getenv('JIKAN_RATE_LIMIT_DELAY'):
+                self.jikan_rate_limit_delay = 2.0
+            
+            # Reduce limits for faster CI tests
+            self.top_anime_limit = 10
+            self.seasonal_anime_limit = 5
+            self.upcoming_anime_limit = 5
 
     @field_validator("jikan_rate_limit_delay")
     def validate_rate_limit(cls, v):

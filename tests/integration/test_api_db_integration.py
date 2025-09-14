@@ -34,7 +34,7 @@ class TestAPIIntegration:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
-        print("✅ Health endpoint test passed")
+        print("Health endpoint test passed")
     
     async def test_database_connectivity_via_api(self, client):
         """Test that API can connect to database by checking record count."""
@@ -43,12 +43,12 @@ class TestAPIIntegration:
         
         # Should return data or empty list, not 500 error
         assert response.status_code in [200, 404]  # 404 if no data, 200 if data exists
-        print("✅ Database connectivity test passed")
+        print("Database connectivity test passed")
 
 
 async def run_tests():
     """Main test runner using working patterns from existing integration tests."""
-    print("🔍 Running API Integration Tests...")
+    print("Running API Integration Tests...")
     
     test_instance = TestAPIIntegration()
     
@@ -59,20 +59,20 @@ async def run_tests():
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM anime_snapshots;")
         count = cursor.fetchone()[0]
-        print(f"📊 Found {count} records in database")
+        print(f"Found {count} records in database")
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"Database connection failed: {e}")
         return
     
     # Initialize Redis
     try:
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         await connect_redis(redis_url)
-        print("✅ Redis connection established")
+        print("Redis connection established")
     except Exception as e:
-        print(f"❌ Redis connection failed: {e}")
+        print(f"Redis connection failed: {e}")
         return
     
     try:
@@ -86,10 +86,10 @@ async def run_tests():
             # Test database connectivity through API
             await test_instance.test_database_connectivity_via_api(client)
             
-            print("🎉 All API integration tests passed!")
+            print("All API integration tests passed!")
                 
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"Test failed: {e}")
         import traceback
         traceback.print_exc()
         raise

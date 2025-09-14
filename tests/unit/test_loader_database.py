@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 # Add ETL src to path for imports
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../etl'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/etl'))
 
 from src.loaders.database import DatabaseLoader
 from src.models.jikan import AnimeSnapshot
@@ -89,9 +89,14 @@ class TestDatabaseLoader:
         assert result["snapshot_type"] == sample_snapshot.snapshot_type
         assert result["snapshot_date"] == sample_snapshot.snapshot_date
         
-        # Test JSON fields
-        assert isinstance(result["genres"], list)
-        assert isinstance(result["images"], dict)
+        # Test JSON fields are serialized to strings
+        assert isinstance(result["genres"], str)
+        assert isinstance(result["images"], str)
+        
+        # Test that JSON strings can be parsed back to original types
+        import json
+        assert isinstance(json.loads(result["genres"]), list)
+        assert isinstance(json.loads(result["images"]), dict)
     
     def test_snapshot_to_dict_with_none_score(self, loader):
         """Test conversion when score is None"""
@@ -114,7 +119,11 @@ class TestDatabaseLoader:
     def test_load_snapshots_successful(self, loader, sample_snapshots):
         """Test successful loading of snapshots"""
         mock_session = Mock()
-        mock_session.execute.return_value = None  # No existing records
+        
+        # Mock the execute().fetchone() call for duplicate checking
+        mock_result = Mock()
+        mock_result.fetchone.return_value = None  # No existing records
+        mock_session.execute.return_value = mock_result
         
         with patch.object(loader, 'SessionLocal', return_value=mock_session):
             result = loader.load_snapshots(sample_snapshots, batch_size=2, upsert=True)
@@ -183,6 +192,7 @@ class TestDatabaseLoader:
         with patch.object(loader, 'SessionLocal', return_value=mock_session), \
              patch.object(loader, '_load_batch', return_value={
                  "successful_inserts": 2,
+                 "successful_updates": 0,
                  "duplicate_skips": 0,
                  "errors": 0,
                  "error_details": []
@@ -272,17 +282,27 @@ class TestDatabaseLoader:
         """Test that upsert SQL is generated correctly for conflicts"""
         mock_session = Mock()
         
+        # Mock the execute().fetchone() call for duplicate checking
+        mock_result = Mock()
+        mock_result.fetchone.return_value = None  # No existing records
+        mock_session.execute.return_value = mock_result
+        
         with patch.object(loader, 'SessionLocal', return_value=mock_session):
             loader._load_batch([sample_snapshot], upsert=True)
             
-            # Verify that execute was called (SQL generation successful)
-            mock_session.execute.assert_called()
+            # Should be called multiple times: SELECT for duplicate check + INSERT with ON CONFLICT
+            assert mock_session.execute.call_count >= 2
             
-            # Check that the SQL contains ON CONFLICT clause
-            call_args = mock_session.execute.call_args_list[0]
-            sql_text = str(call_args[0][0])  # First argument should be the SQL
-            assert "ON CONFLICT" in sql_text
-            assert "DO UPDATE SET" in sql_text
+            # Check that one of the SQL calls contains ON CONFLICT clause (the upsert)
+            all_calls = mock_session.execute.call_args_list
+            sql_texts = [str(call[0][0]) for call in all_calls]
+            
+            # Look for the ON CONFLICT in any of the SQL statements
+            has_on_conflict = any("ON CONFLICT" in sql for sql in sql_texts)
+            assert has_on_conflict, f"No ON CONFLICT found in SQL calls: {sql_texts}"
+            
+            has_do_update = any("DO UPDATE SET" in sql for sql in sql_texts)
+            assert has_do_update, f"No DO UPDATE SET found in SQL calls: {sql_texts}"
     
     def test_simple_insert_sql_generation(self, loader, sample_snapshot):
         """Test that simple insert SQL is generated correctly"""
