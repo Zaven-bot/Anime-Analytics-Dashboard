@@ -8,12 +8,7 @@ from typing import Any, Dict, List, Optional  # Type hints
 
 import httpx  # Async HTTP client
 import structlog  # Structured logging
-from tenacity import (  # Retry logic
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential  # Retry logic
 
 from ..config import get_settings
 from ..models.jikan import JikanAnime, JikanSearchResponse
