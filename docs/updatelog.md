@@ -374,6 +374,8 @@ docker compose --profile etl up -d
 ```bash
 cd infrastructure/docker-compose
 docker compose --profile etl --profile scheduler up -d
+# This can break as locking logic for JikanAPI requests are not
+# prepared for multiple instances of schedulers
 # Runs: core services + manual ETL + automated scheduler
 ```
 
@@ -417,9 +419,9 @@ docker compose up -d
 - **External Volumes**: Data persistence across container restarts
 
 **Dockerfile Verification:**
-- **Backend Dockerfile**: ✅ Correct Python environment with FastAPI and uvicorn
-- **ETL Dockerfile**: ✅ Fixed main.py path (not src/main.py) with proper dependencies
-- **Frontend Dockerfile**: ✅ Node.js 18 with npm development server
+- **Backend Dockerfile**: Correct Python environment with FastAPI and uvicorn
+- **ETL Dockerfile**: Fixed main.py path (not src/main.py) with proper dependencies
+- **Frontend Dockerfile**: Node.js 18 with npm development server
 - **All Dockerfiles**: Optimized layer caching with requirements/package.json copied first
 
 **Production-Ready Features:**
