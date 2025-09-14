@@ -25,7 +25,11 @@ jobs:
       - name: Install linting dependencies
         run: |
           pip install -r tools/linting/requirements.txt
-      
+
+          # Install project dependencies (needed for mypy type checking)
+          pip install -r services/backend/requirements.txt
+          pip install -r services/etl/requirements.txt
+          
       - name: Python - Lint with flake8
         run: |
           echo "Running flake8 linting..."
@@ -138,7 +142,7 @@ jobs:
           JIKAN_BASE_URL: https://api.jikan.moe/v4
           JIKAN_RATE_LIMIT_DELAY: 2.0
         run: |
-          echo "🧪 Running integration tests with GitHub Actions service containers..."
+          echo "Running integration tests with GitHub Actions service containers..."
           echo "Database: localhost:5432/test_db"
           echo "Redis: localhost:6379/1"
           
@@ -151,7 +155,7 @@ jobs:
           # Run Redis cache integration tests directly  
           python tests/integration/test_redis_cache_integration_simple.py
           
-          echo "✅ All integration tests completed successfully!"
+          echo "All integration tests completed successfully!"
 
   docker-build:
     name: Docker Build Validation

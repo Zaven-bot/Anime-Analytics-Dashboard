@@ -18,21 +18,29 @@ from src.config import ETLSettings, get_settings, ETL_JOBS
 class TestETLSettings:
     """Test ETL settings configuration and validation"""
     
-    # def test_default_settings(self):
-    #     """Test that default settings are loaded correctly"""
-    #     settings = ETLSettings()
+    def test_configuration_loads_with_valid_values(self):
+        """Test that configuration loads successfully with valid values in any environment"""
+        settings = ETLSettings()
         
-    #     assert settings.database_url == "postgresql://anime_user:anime_password@localhost:5433/anime_dashboard"
-    #     assert settings.redis_url == "redis://localhost:6379"
-    #     assert settings.jikan_base_url == "https://api.jikan.moe/v4"
-    #     assert settings.jikan_rate_limit_delay == 1.5
-    #     assert settings.jikan_max_retries == 3
-    #     assert settings.jikan_timeout == 30
-    #     assert settings.debug is False
-    #     assert settings.log_level == "INFO"
-    #     assert settings.top_anime_limit == 50
-    #     assert settings.seasonal_anime_limit == 25
-    #     assert settings.upcoming_anime_limit == 25
+        # Test that URLs are properly formatted
+        assert settings.database_url.startswith("postgresql://")
+        assert "localhost" in settings.database_url
+        assert settings.redis_url.startswith("redis://")
+        assert settings.jikan_base_url == "https://api.jikan.moe/v4"
+        
+        # Test that numeric values are within valid ranges
+        assert settings.jikan_rate_limit_delay >= 0.1  # Minimum valid delay
+        assert settings.jikan_max_retries >= 1
+        assert settings.jikan_timeout > 0
+        
+        # Test boolean and string values are set
+        assert isinstance(settings.debug, bool)
+        assert settings.log_level in ["DEBUG", "INFO", "WARNING", "ERROR"]
+        
+        # Test that limits are positive integers
+        assert settings.top_anime_limit > 0
+        assert settings.seasonal_anime_limit > 0
+        assert settings.upcoming_anime_limit > 0
     
     def test_environment_variable_override(self):
         """Test that environment variables override defaults"""
@@ -51,17 +59,20 @@ class TestETLSettings:
             assert settings.debug is True
             assert settings.log_level == 'DEBUG'
     
-    # def test_rate_limit_validation(self):
-    #     """Test that rate limit delay validation works"""
-    #     # Valid rate limit
-    #     settings = ETLSettings(jikan_rate_limit_delay=0.5)
-    #     assert settings.jikan_rate_limit_delay == 0.5
-        
-    #     # Invalid rate limit (too low)
-    #     with pytest.raises(ValidationError) as exc_info:
-    #         ETLSettings(jikan_rate_limit_delay=0.05)
-        
-    #     assert "Rate limit delay must be at least 0.1 seconds" in str(exc_info.value)
+    
+    def test_rate_limit_validation(self):
+        """Test that rate limit delay validation works"""
+        # Test that explicit values override any environment settings
+        with patch.dict(os.environ, {}, clear=True):
+            # Valid rate limit
+            settings = ETLSettings(jikan_rate_limit_delay=0.5)
+            assert settings.jikan_rate_limit_delay == 0.5
+            
+            # Invalid rate limit (too low)
+            with pytest.raises(ValidationError) as exc_info:
+                ETLSettings(jikan_rate_limit_delay=0.05)
+            
+            assert "Rate limit delay must be at least 0.1 seconds" in str(exc_info.value)
     
     def test_get_settings_function(self):
         """Test the get_settings convenience function"""
@@ -69,15 +80,16 @@ class TestETLSettings:
         assert isinstance(settings, ETLSettings)
         assert settings.database_url is not None
     
-    # def test_case_insensitive_env_vars(self):
-    #     """Test that environment variables are case insensitive"""
-    #     with patch.dict(os.environ, {
-    #         'database_url': 'postgresql://lowercase:test@localhost:5432/test',
-    #         'REDIS_URL': 'redis://uppercase:6379'
-    #     }):
-    #         settings = ETLSettings()
-    #         assert settings.database_url == 'postgresql://lowercase:test@localhost:5432/test'
-    #         assert settings.redis_url == 'redis://uppercase:6379'
+    
+    def test_case_insensitive_env_vars(self):
+        """Test that environment variables are case insensitive"""
+        with patch.dict(os.environ, {
+            'database_url': 'postgresql://lowercase:test@localhost:5432/test',
+            'REDIS_URL': 'redis://uppercase:6379'
+        }, clear=True):
+            settings = ETLSettings()
+            assert settings.database_url == 'postgresql://lowercase:test@localhost:5432/test'
+            assert settings.redis_url == 'redis://uppercase:6379'
 
 @pytest.mark.unit
 class TestETLJobs:
