@@ -4,6 +4,7 @@ Handles fetching data from Jikan API with retry logic and rate limiting.
 """
 
 import asyncio  # Async sleep and control flow
+import time
 from typing import Any, Dict, List, Optional  # Type hints
 
 import httpx  # Async HTTP client
@@ -12,6 +13,15 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from ..config import get_settings
 from ..models.jikan import JikanAnime, JikanSearchResponse
+
+# Conditionally import ETL metrics to avoid global registry pollution
+try:
+    from ..metrics_server import etl_metrics
+
+    ETL_METRICS_AVAILABLE = True
+except ImportError:
+    ETL_METRICS_AVAILABLE = False
+
 from .rate_limiter import JikanRateLimiter
 
 logger = structlog.get_logger(__name__)
@@ -55,6 +65,10 @@ class JikanExtractor:
         Make a request to Jikan API with retry logic and rate limiting.
         """
         url = f"{self.base_url}{endpoint}"
+        start_time = time.time()
+
+        # Determine endpoint type for metrics
+        endpoint_type = "search" if "anime" == endpoint else "other"
 
         logger.info("Making Jikan API request", url=url, params=params)
 
@@ -63,11 +77,17 @@ class JikanExtractor:
             await self.rate_limiter.wait()
 
             response = await self.client.get(url, params=params)
+            request_duration = time.time() - start_time
 
             # Handle rate limiting (429) specially
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 logger.warning("Rate limited by Jikan API", retry_after=retry_after)
+
+                # Record rate limit metrics
+                if ETL_METRICS_AVAILABLE:
+                    etl_metrics.record_jikan_request(endpoint_type, 429, request_duration)
+
                 await asyncio.sleep(retry_after)
                 raise JikanAPIError("Rate limited")
 
@@ -77,13 +97,29 @@ class JikanExtractor:
             data = response.json()
             logger.info("Jikan API request successful", status_code=response.status_code)
 
+            # Record successful request metrics
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_jikan_request(endpoint_type, response.status_code, request_duration)
+
             return data
 
         except httpx.HTTPError as e:  # Network issues, timeouts, etc.
+            request_duration = time.time() - start_time
             logger.error("HTTP error during Jikan API request", error=str(e), url=url)
+
+            # Record error metrics (use 0 if no status code available)
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_jikan_request(endpoint_type, 0, request_duration)
+
             raise JikanAPIError(f"HTTP error: {e}")
         except Exception as e:  # Bugs in code, weird data, etc.
+            request_duration = time.time() - start_time
             logger.error("Unexpected error during Jikan API request", error=str(e), url=url)
+
+            # Record error metrics
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_jikan_request(endpoint_type, 500, request_duration)
+
             raise JikanAPIError(f"Unexpected error: {e}")
 
     async def fetch_anime_search(self, params: Dict[str, Any], max_pages: Optional[int] = None) -> List[JikanAnime]:

@@ -2,18 +2,12 @@
 Shared Redis client with FastAPI lifecycle management
 """
 
-# ETL config import
-import os
-import sys
-from pathlib import Path
 from typing import Optional
 
 import redis.asyncio as redis
 import structlog
 
-etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
-sys.path.append(str(etl_path))
-from src.config import get_settings
+from ..database import config
 
 logger = structlog.get_logger(__name__)
 
@@ -24,8 +18,7 @@ _redis_client: Optional[redis.Redis] = None
 async def connect_redis(redis_url: str) -> redis.Redis:
     """Initialize Redis connection"""
     global _redis_client
-    settings = get_settings()
-    redis_url = redis_url or settings.redis_url
+    redis_url = redis_url or config.redis_url
     try:
         _redis_client = redis.from_url(redis_url, decode_responses=True, health_check_interval=30)
         # Test connection

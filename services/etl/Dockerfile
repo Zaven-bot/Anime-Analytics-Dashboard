@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Default command (run ETL job)
-CMD ["python", "main.py"]
+CMD ["python", "scheduler.py", "--run-once"]

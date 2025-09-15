@@ -3,6 +3,7 @@ Database Loader
 Handles loading transformed data into PostgreSQL database.
 """
 
+import time
 from datetime import date
 from typing import Any, Dict, List
 
@@ -27,6 +28,14 @@ from sqlalchemy.orm import sessionmaker
 
 from ..config import get_settings
 from ..models.jikan import AnimeSnapshot
+
+# Only import ETL metrics if we're running in ETL context (not backend)
+try:
+    from ..metrics_server import etl_metrics
+
+    ETL_METRICS_AVAILABLE = True
+except ImportError:
+    ETL_METRICS_AVAILABLE = False
 
 logger = structlog.get_logger(__name__)
 
@@ -92,11 +101,18 @@ class DatabaseLoader:
 
     def test_connection(self) -> bool:
         """Test database connection"""
+        start_time = time.time()
         try:
             with self.engine.connect() as conn:
                 result = conn.execute(text("SELECT 1"))
+                duration = time.time() - start_time
+                if ETL_METRICS_AVAILABLE:
+                    etl_metrics.record_database_operation("connection_test_success", duration)
                 return result.fetchone()[0] == 1
         except Exception as e:
+            duration = time.time() - start_time
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_database_operation("connection_test_error", duration)
             logger.error("Database connection test failed", error=str(e))
             return False
 
@@ -114,6 +130,9 @@ class DatabaseLoader:
         Returns:
             Dictionary with loading statistics
         """
+        start_time = time.time()
+        operation_type = "upsert" if upsert else "insert_only"
+
         stats: Dict[str, Any] = {
             "total_snapshots": len(snapshots),
             "successful_inserts": 0,
@@ -125,6 +144,10 @@ class DatabaseLoader:
 
         if not snapshots:
             logger.info("No snapshots to load")
+            # Record empty operation
+            duration = time.time() - start_time
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_database_operation(f"load_snapshots_{operation_type}_empty", duration)
             return stats
 
         logger.info(
@@ -133,26 +156,40 @@ class DatabaseLoader:
             batch_size=batch_size,
         )
 
-        # Process in batches
-        for i in range(0, len(snapshots), batch_size):
-            batch = snapshots[i : i + batch_size]
-            batch_stats = self._load_batch(batch, upsert)
+        try:
+            # Process in batches
+            for i in range(0, len(snapshots), batch_size):
+                batch = snapshots[i : i + batch_size]
+                batch_stats = self._load_batch(batch, upsert)
 
-            # Aggregate statistics
-            stats["successful_inserts"] += batch_stats["successful_inserts"]
-            stats["successful_updates"] += batch_stats["successful_updates"]
-            stats["duplicate_skips"] += batch_stats["duplicate_skips"]
-            stats["errors"] += batch_stats["errors"]
-            stats["error_details"].extend(batch_stats["error_details"])
+                # Aggregate statistics
+                stats["successful_inserts"] += batch_stats["successful_inserts"]
+                stats["successful_updates"] += batch_stats["successful_updates"]
+                stats["duplicate_skips"] += batch_stats["duplicate_skips"]
+                stats["errors"] += batch_stats["errors"]
+                stats["error_details"].extend(batch_stats["error_details"])
 
-            logger.info(
-                "Batch processed",
-                batch_number=i // batch_size + 1,  # 1-indexed
-                batch_size=len(batch),
-                successful=batch_stats["successful_inserts"],
-                errors=batch_stats["errors"],
-                skips=batch_stats["duplicate_skips"],
-            )
+                logger.info(
+                    "Batch processed",
+                    batch_number=i // batch_size + 1,  # 1-indexed
+                    batch_size=len(batch),
+                    successful=batch_stats["successful_inserts"],
+                    errors=batch_stats["errors"],
+                    skips=batch_stats["duplicate_skips"],
+                )
+
+            # Record successful operation metrics
+            duration = time.time() - start_time
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_database_operation(f"load_snapshots_{operation_type}_success", duration)
+
+        except Exception as e:
+            # Record error metrics
+            duration = time.time() - start_time
+            if ETL_METRICS_AVAILABLE:
+                etl_metrics.record_database_operation(f"load_snapshots_{operation_type}_error", duration)
+            logger.error("Database load failed", error=str(e))
+            raise
 
         logger.info("Database load completed", **stats)
         return stats
@@ -199,6 +236,7 @@ class DatabaseLoader:
                     # Try to insert or update
                     if upsert:
                         # Use PostgreSQL UPSERT (ON CONFLICT)
+                        upsert_start_time = time.time()
                         insert_stmt = text(
                             """
                             INSERT INTO anime_snapshots (
@@ -229,14 +267,21 @@ class DatabaseLoader:
                         )
 
                         session.execute(insert_stmt, snapshot_dict)
+                        upsert_duration = time.time() - upsert_start_time
+
                         if existing:
                             batch_stats["successful_updates"] += 1
+                            if ETL_METRICS_AVAILABLE:
+                                etl_metrics.record_database_operation("snapshot_update", upsert_duration)
                         else:
                             batch_stats["successful_inserts"] += 1
+                            if ETL_METRICS_AVAILABLE:
+                                etl_metrics.record_database_operation("snapshot_insert", upsert_duration)
 
                     # Just insert without checking for duplicates
                     else:
                         # Simple insert
+                        insert_start_time = time.time()
                         insert_stmt = text(
                             """
                             INSERT INTO anime_snapshots (
@@ -257,7 +302,10 @@ class DatabaseLoader:
                         """
                         )
                         session.execute(insert_stmt, snapshot_dict)
+                        insert_duration = time.time() - insert_start_time
                         batch_stats["successful_inserts"] += 1
+                        if ETL_METRICS_AVAILABLE:
+                            etl_metrics.record_database_operation("snapshot_insert_only", insert_duration)
 
                 except SQLAlchemyError as e:  # DB-related issues
                     batch_stats["errors"] += 1

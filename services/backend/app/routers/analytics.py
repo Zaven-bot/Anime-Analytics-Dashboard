@@ -3,11 +3,6 @@ Analytics API endpoints
 Serves aggregated analytics data from the ETL pipeline
 """
 
-# Add ETL path to sys.path to import ETL database loader
-import os
-import sys
-from pathlib import Path
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -23,10 +18,6 @@ from ..models.responses import (
 )
 from ..services.analytics import AnalyticsService
 from ..services.redis_client import get_redis
-
-etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
-sys.path.append(str(etl_path))
-
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()

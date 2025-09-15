@@ -1,37 +1,30 @@
 """
 Analytics Service
-Extends DatabaseLoader with analytics-specific queries for the API
+Backend analytics service with direct database access
 """
 
 import json
-
-# Add ETL path to sys.path to import ETL modules
-import os
-import sys
-from pathlib import Path
+import time
 from typing import Any, Dict, List, Optional, cast
 
 import redis.asyncio as redis
 import structlog
 from sqlalchemy import text
 
-etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
-sys.path.append(str(etl_path))
-from src.loaders.database import DatabaseLoader
+from ..database import database_engine, get_database_session
+from ..metrics import metrics
 
 logger = structlog.get_logger(__name__)
 
 
 class AnalyticsService:
     """
-    Analytics service that extends DatabaseLoader with read-only analytics queries.
+    Analytics service with direct database access for backend API.
     Uses dependency injection for Redis client.
     """
 
     def __init__(self, redis_client: Optional[redis.Redis] = None):
-        self.db_loader = DatabaseLoader()
-        self.engine = self.db_loader.engine
-        self.SessionLocal = self.db_loader.SessionLocal
+        self.engine = database_engine
         self.redis_client = redis_client
 
         # Cache TTL settings (in seconds) - domain-specific
@@ -42,6 +35,9 @@ class AnalyticsService:
             "seasonal_trends": 900,  # 15 minutes
         }
 
+        # Update connection pool metrics using centralized function
+        metrics.update_connection_metrics(self.engine, self.redis_client)
+
     def _get_cache_key(self, prefix: str, **kwargs) -> str:
         """Generate consistent cache keys"""
         key_parts = [f"anime:{prefix}"]
@@ -49,26 +45,34 @@ class AnalyticsService:
             key_parts.append(f"{key}:{value}")
         return ":".join(key_parts)
 
-    async def _get_cached_data(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        """Get data from cache"""
+    async def _get_cached_data(self, cache_key: str) -> Optional[Any]:
+        """Get data from cache - returns Any type since different methods cache different structures"""
         if not self.redis_client:
             logger.debug("Redis client not available, skipping cache")
+            metrics.record_cache_operation("miss", "no_client")
             return None
 
         try:
             cached_data = await self.redis_client.get(cache_key)
             if cached_data:
                 logger.info("Cache hit", cache_key=cache_key)
+                # Determine cache key type for metrics
+                cache_type = cache_key.split(":")[1] if ":" in cache_key else "unknown"
+                metrics.record_cache_operation("hit", cache_type)
                 return json.loads(cached_data)
             else:
                 logger.info("Cache miss", cache_key=cache_key)
+                cache_type = cache_key.split(":")[1] if ":" in cache_key else "unknown"
+                metrics.record_cache_operation("miss", cache_type)
                 return None
         except Exception as e:
             logger.warning("Cache read failed", cache_key=cache_key, error=str(e))
+            cache_type = cache_key.split(":")[1] if ":" in cache_key else "unknown"
+            metrics.record_cache_operation("error", cache_type)
             return None
 
-    async def _set_cached_data(self, cache_key: str, data: Dict[str, Any], ttl: int):
-        """Set data in cache with TTL"""
+    async def _set_cached_data(self, cache_key: str, data: Any, ttl: int):
+        """Set data in cache with TTL - accepts Any data type for flexible caching"""
         if not self.redis_client:
             logger.debug("Redis client not available, skipping cache write")
             return
@@ -93,8 +97,12 @@ class AnalyticsService:
             return cached_data
 
         # Cache miss - query database
-        session = self.SessionLocal()
+        start_time = time.time()
+        session = get_database_session()
         try:
+            # Update connection metrics using centralized function
+            metrics.update_connection_metrics(self.engine, self.redis_client)
+
             # Total snapshots
             total_query = text("SELECT COUNT(*) FROM anime_snapshots")
             total_snapshots = session.execute(total_query).scalar()
@@ -129,19 +137,35 @@ class AnalyticsService:
                 "unique_anime": self._get_unique_anime_count(session),
             }
 
+            # Record metrics for query execution
+            query_duration = time.time() - start_time
+            metrics.record_database_query("database_stats", query_duration)
+
             # Cache the result
             await self._set_cached_data(cache_key, result, self.cache_ttl["database_stats"])
             return result
 
         except Exception as e:
             logger.error("Failed to get database stats", error=str(e))
+            # Record error in metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("database_stats_error", query_duration)
             raise
         finally:
             session.close()
 
     async def get_top_rated_anime(self, limit: int = 10, snapshot_type: str = "top") -> List[Dict[str, Any]]:
         """Get top-rated anime from latest snapshots"""
-        session = self.SessionLocal()
+        cache_key = self._get_cache_key("top_rated", snapshot_type=snapshot_type, limit=limit)
+
+        # Try cache first
+        cached_data = await self._get_cached_data(cache_key)
+        if cached_data:
+            return cached_data
+
+        # Cache miss - query database
+        start_time = time.time()
+        session = get_database_session()
         try:
             # Get latest snapshot date for the type
             latest_date_query = text(
@@ -154,6 +178,8 @@ class AnalyticsService:
             latest_date = session.execute(latest_date_query, {"snapshot_type": snapshot_type}).scalar()
 
             if not latest_date:
+                query_duration = time.time() - start_time
+                metrics.record_database_query("top_rated_no_data", query_duration)
                 return []
 
             # Get top anime from latest snapshot
@@ -194,10 +220,19 @@ class AnalyticsService:
                     }
                 )
 
+            # Record successful query metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("top_rated", query_duration)
+
+            # Cache the result
+            await self._set_cached_data(cache_key, results, self.cache_ttl["top_rated"])
             return results
 
         except Exception as e:
             logger.error("Failed to get top rated anime", error=str(e))
+            # Record error in metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("top_rated_error", query_duration)
             raise
         finally:
             session.close()
@@ -211,7 +246,8 @@ class AnalyticsService:
             return cached_data
 
         # Cache miss - run expensive query
-        session = self.SessionLocal()
+        start_time = time.time()
+        session = get_database_session()
         try:
             # Get latest snapshot date
             latest_date_query = text(
@@ -224,6 +260,8 @@ class AnalyticsService:
             latest_date = session.execute(latest_date_query, {"snapshot_type": snapshot_type}).scalar()
 
             if not latest_date:
+                query_duration = time.time() - start_time
+                metrics.record_database_query("genre_distribution_no_data", query_duration)
                 return {
                     "genres": [],
                     "total_anime": 0,
@@ -301,12 +339,19 @@ class AnalyticsService:
                 "snapshot_date": latest_date.isoformat(),
             }
 
+            # Record successful query metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("genre_distribution", query_duration)
+
             # Cache the expensive result with longer TTL
             await self._set_cached_data(cache_key, result, self.cache_ttl["genre_distribution"])
             return result
 
         except Exception as e:
             logger.error("Failed to get genre distribution", error=str(e))
+            # Record error in metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("genre_distribution_error", query_duration)
             raise
         finally:
             session.close()
@@ -320,7 +365,8 @@ class AnalyticsService:
         if cached_data:
             return cached_data
 
-        session = self.SessionLocal()
+        start_time = time.time()
+        session = get_database_session()
         try:
             query = text(
                 """
@@ -421,19 +467,40 @@ class AnalyticsService:
 
             result = {"trends": trends, "total_periods": len(trends)}
 
+            # Record successful query metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("seasonal_trends", query_duration)
+
             await self._set_cached_data(cache_key, result, self.cache_ttl["seasonal_trends"])
             return result
 
         except Exception as e:
             logger.error("Failed to get seasonal trends", error=str(e))
+            # Record error in metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("seasonal_trends_error", query_duration)
             raise
         finally:
             session.close()
 
     def _get_unique_anime_count(self, session) -> int:
         """Get count of unique anime (distinct mal_id)"""
-        query = text("SELECT COUNT(DISTINCT mal_id) FROM anime_snapshots")
-        return session.execute(query).scalar()
+        start_time = time.time()
+        try:
+            query = text("SELECT COUNT(DISTINCT mal_id) FROM anime_snapshots")
+            result = session.execute(query).scalar()
+
+            # Record successful query metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("unique_anime_count", query_duration)
+            return result
+
+        except Exception as e:
+            # Record error in metrics
+            query_duration = time.time() - start_time
+            metrics.record_database_query("unique_anime_count_error", query_duration)
+            logger.error("Failed to get unique anime count", error=str(e))
+            raise
 
     def _parse_json_field(self, json_field) -> List[Dict]:
         """Safely parse JSON field from database"""

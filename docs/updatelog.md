@@ -441,17 +441,17 @@ The Docker Compose infrastructure provides a complete development and deployment
 
 ### Key Features
 
-**🏠 Local Environment (Docker Compose):**
+**Local Environment (Docker Compose):**
 - PostgreSQL on port 5433, database `anime_dashboard`
 - Redis on port 6379, database 0
 - Full dataset limits, 1.5s API rate limiting
 
-**🤖 GitHub Actions (Service Containers):**
+**GitHub Actions (Service Containers):**
 - PostgreSQL on port 5432, database `test_db` 
 - Redis on port 6379, database 1
 - Conservative limits, 2.0s API rate limiting
 
-**🧪 Environment-Aware Configuration:**
+**Environment-Aware Configuration:**
 ```python
 # services/etl/src/config.py - Automatic detection
 if os.getenv('GITHUB_ACTIONS'):
@@ -490,3 +490,131 @@ curl http://localhost:8000/analytics/database-stats
 
 **Result:** CI/CD with real integration testing that automatically adapts to local development vs GitHub Actions environments. Every push validates the complete system integration with actual PostgreSQL and Redis services, not just mocks.
 
+## Week 3 — Observability & Monitoring
+
+Goal: Transform the AnimeDashboard from a functional application into a production-ready system with comprehensive observability, enabling proactive monitoring, performance optimization, and operational insights.
+
+### Day 1 — Backend & ETL Metrics Instrumentation - COMPLETED
+
+**Objective**: Implement comprehensive Prometheus metrics collection across all services to establish foundational observability for performance monitoring and operational insights.
+
+#### Technical Implementation
+
+**1. Backend Metrics Infrastructure (`services/backend/app/metrics.py`):**
+```python
+class MetricsCollector:
+    def __init__(self):
+        # HTTP request tracking
+        self.http_requests_total = Counter(
+            'http_requests_total', 'Total HTTP requests',
+            ['method', 'endpoint', 'status']
+        )
+        
+        # Cache performance monitoring  
+        self.redis_cache_operations_total = Counter(
+            'redis_cache_operations_total', 'Redis cache operations',
+            ['operation', 'cache_type']
+        )
+        
+        # Database query performance
+        self.database_query_duration_seconds = Histogram(
+            'database_query_duration_seconds', 'Database query duration',
+            ['operation_type', 'table_name']
+        )
+```
+
+**Key Architectural Decision**: Centralized metrics collection with method-specific tracking enables granular performance analysis while maintaining clean separation of concerns.
+
+**2. ETL Metrics Server (`services/etl/src/metrics_server.py`):**
+- **Standalone metrics server on port 9090** to prevent metric namespace pollution
+- **Job execution tracking** with duration, success/failure rates, and record processing counts
+- **Jikan API monitoring** with response time tracking and rate limit handling
+- **Database operation metrics** for ETL pipeline performance analysis
+
+**Interview Talking Point**: *"This is like having separate dashboards for different workers - each service has its own metrics endpoint, so ETL pipeline monitoring doesn't interfere with user-facing API metrics."*
+
+**3. Cross-Service Integration Challenges Solved:**
+
+**Problem**: ETL metrics were appearing on the backend `/metrics` endpoint due to Prometheus's global registry pattern, and backend service was tightly coupled to ETL components through shared volume mounts.
+
+**Solution**: **Microservice Decoupling with Environment-Based Configuration**
+- **Removed ETL dependency entirely** from backend service - no more `/shared/etl` volume mount
+- **Direct SQLAlchemy integration** using standard `DATABASE_URL` and `REDIS_URL` environment variables
+- **Clean service boundaries**: Backend handles API logic, ETL handles data pipeline, both share database independently
+- **Eliminated metric namespace pollution**: Each service manages its own Prometheus metrics without cross-contamination
+
+```python
+# Before: Backend importing ETL components
+from src.config import get_settings
+from src.loaders.database import DatabaseLoader
+
+# After: Direct environment variable configuration
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_engine(DATABASE_URL)
+```
+
+**Architectural Insight**: This demonstrates true microservice architecture - services communicate via shared persistence layer (database) rather than code imports.
+
+#### Connection Pool Monitoring Deep-Dive
+
+**Challenge**: Database connection pool metrics were showing 0.0 values despite active connections.
+
+**Technical Investigation**: 
+```python
+def _update_connection_metrics(self, db_engine, redis_client):
+    """Enhanced connection pool introspection with fallback strategies"""
+    try:
+        # SQLAlchemy pool introspection
+        pool = db_engine.pool
+        if hasattr(pool, 'size'):
+            self.connection_pool_size.set(pool.size())
+        if hasattr(pool, 'checkedin'):
+            self.connection_pool_checked_in.set(pool.checkedin())
+    except Exception as e:
+        # Graceful degradation with reasonable defaults
+        logger.warning("Connection pool metrics unavailable", error=str(e))
+```
+
+**Interview Insight**: *"This taught me that library APIs can vary between versions, so production monitoring code needs defensive programming with graceful fallbacks. It's like building a car dashboard that still shows speed even if the fancy digital display fails - you always need a backup gauge."*
+
+#### Code Quality & Maintainability Improvements
+
+**Refactoring Achievement**: Eliminated code duplication between `analytics.py` and `health.py` by centralizing connection metrics logic:
+
+```python
+# Before: Duplicated logic in multiple files
+# After: Single source of truth in metrics.py
+def update_connection_metrics(self, db_engine=None, redis_client=None):
+    """Centralized connection pool monitoring"""
+```
+
+**Technical Leadership Moment**: *"I noticed we were copying the same connection monitoring logic across files. Instead of technical debt accumulating, I refactored it into a reusable function. Then I realized we had a deeper architectural issue - our backend service was importing ETL pipeline code, violating microservice principles. I decoupled the services entirely, using environment variables and direct database connections instead of shared code imports."*
+
+#### Production-Ready Architecture Patterns
+
+**1. True Microservice Isolation**: Backend and ETL services operate independently with no code dependencies
+**2. Environment-Driven Configuration**: Standard `DATABASE_URL`/`REDIS_URL` pattern for cloud deployment
+**3. Namespace Isolation**: ETL metrics on port 9090, backend metrics on port 8000
+**4. Graceful Degradation**: Metrics collection failures don't break application functionality  
+**5. Observability-Driven Development**: Every database query, cache operation, and HTTP request is instrumented
+**6. Independent Deployment**: Services can be deployed, scaled, and updated separately
+
+#### Interview Storytelling Framework
+
+**Situation**: "We had a working AnimeDashboard, but no visibility into performance bottlenecks or system health."
+
+**Task**: "I needed to implement comprehensive metrics without disrupting existing functionality - like adding gauges to a car while it's driving."
+
+**Action**: "I designed a two-tier metrics architecture: backend service metrics on port 8000 for user-facing performance, and ETL pipeline metrics on port 9090 for data processing insights. The key challenge was preventing metric namespace pollution between services, which led me to backtrack to our backend importing ETL code - a microservice anti-pattern. I decoupled the services entirely using environment variables and direct database connections."
+
+**Result**: "Now we can monitor database query performance, cache hit rates, HTTP response times, and ETL job success rates. Most importantly, the metrics collection is robust - if monitoring fails, the application keeps running."
+
+**Technical Deep-Dive Questions You Can Handle**:
+- "How do you prevent metric namespace collisions in a microservices architecture?"
+- "What's your approach to instrumenting existing code without breaking functionality?"  
+- "How do you balance comprehensive monitoring with performance overhead?"
+- "Describe a time you had to debug cross-service dependency issues."
+- "How do you design services for independent deployment and scaling?"
+- "What's your approach to service decoupling when you discover tight coupling?"
+
+**Key Takeaway**: This day demonstrates both technical depth (Prometheus internals, Python import mechanics) and systems thinking (service isolation, graceful degradation, operational maintainability). Perfect foundation for discussing production observability in SRE interviews.

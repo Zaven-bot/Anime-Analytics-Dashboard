@@ -48,7 +48,6 @@ services:
         condition: service_healthy
     volumes:
       - ../../services/backend:/app
-      - ../../services/etl:/shared/etl  # Mount ETL code for backend to import
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   etl:
@@ -84,6 +83,8 @@ services:
       - JIKAN_BASE_URL=https://api.jikan.moe/v4
       - JIKAN_RATE_LIMIT_DELAY=1.0
       - TZ=UTC  # Critical: scheduler needs timezone
+    ports:
+      - "9090:9090"  # Expose ETL metrics port on scheduler service
     depends_on:
       postgres:
         condition: service_healthy

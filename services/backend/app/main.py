@@ -1,24 +1,17 @@
 """
 AnimeDashboard Backend API
-FastAPI application that serves analytics data from the ETL pipeline.
+FastAPI application that serves analytics data with direct database access.
 """
 
 import logging
-
-# Import existing ETL components
-import os
-import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent / "etl"
-sys.path.append(str(etl_path))
-from src.config import get_settings
-from src.loaders.database import DatabaseLoader
+from .database import config, test_database_connection
+from .middleware import MetricsMiddleware
 
 # Import routers
 from .routers import analytics, health
@@ -58,8 +51,7 @@ async def lifespan(app: FastAPI):
     print("LIFESPAN STARTING")  # Add this
 
     try:
-        db_loader = DatabaseLoader()
-        if db_loader.test_connection():
+        if test_database_connection():
             logger.info("Database connection successful")
         else:
             logger.error("Database connection failed")
@@ -67,8 +59,7 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to initialize database connection", error=str(e))
 
     try:
-        settings = get_settings()
-        await connect_redis(settings.redis_url)
+        await connect_redis(config.redis_url)
     except Exception as e:
         logger.error("Failed to initialize Redis connection", error=str(e))
 
@@ -102,6 +93,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+# Add metrics middleware for Prometheus instrumentation
+app.add_middleware(MetricsMiddleware)
 
 # Include routers
 app.include_router(health.router, tags=["health"])

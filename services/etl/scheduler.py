@@ -11,7 +11,7 @@ WHAT IT DOES:
 - Can run once immediately or continuously as a daemon
 
 SCHEDULE CONFIGURATION (you can modify these times):
-- Full ETL: Daily at 8:00 AM (all jobs)
+- Full ETL: Every 5 Minutes (all jobs)
 
 USAGE:
 - python scheduler.py --run-once     # Run all jobs immediately
@@ -25,12 +25,13 @@ import asyncio
 import time
 from datetime import datetime
 
-import schedule  # Third-party library for scheduling (pip install schedule)
+import schedule  # Third-party library for scheduling
 from main import ETLPipeline
 
 # IMPORT EXISTING ETL COMPONENTS (main.py ETL pipeline)
 from src.config import get_settings
 from src.logging_config import setup_logging
+from src.metrics_server import etl_metrics
 
 # Set up logging once at module level
 logger = setup_logging("scheduler")
@@ -59,6 +60,14 @@ class ETLScheduler:
         # USE EXISTING ETL PIPELINE
         self.pipeline = ETLPipeline()  # From main.py
         self.settings = get_settings()  # Your existing config
+
+        # Start metrics server for continuous monitoring
+        try:
+            etl_metrics.start_server()
+            etl_metrics.update_pipeline_health(True)
+            logger.info("ETL metrics server started successfully")
+        except Exception as e:
+            logger.error("Failed to start ETL metrics server", error=str(e))
 
         # CONCURRENCY PROTECTION - prevents multiple jobs from running simultaneously
         self.is_running = False  # Simple flag to prevent job overlap
@@ -114,7 +123,7 @@ class ETLScheduler:
         Modify these times to change when jobs run:
 
         CURRENT SCHEDULE:
-        - 08:00 AM: Full ETL (all jobs) - Before I wake up
+        - Every 5 Minutes: Full ETL (all jobs)
 
         SCHEDULE SYNTAX:
         - schedule.every().day.at("HH:MM") - Daily at specific time
@@ -124,10 +133,9 @@ class ETLScheduler:
         TO CUSTOMIZE: Change the times or add new schedules here
         """
 
-        # MAIN DAILY ETL - All jobs at 8:00 AM
-        schedule.every().day.at("08:00").do(self._run_daily_job)
-
-        logger.info("ETL jobs scheduled", daily_full_run="08:00 AM")
+        # MAIN DAILY ETL - All jobs at Every Hour
+        schedule.every(5).minutes.do(self._run_daily_job)
+        logger.info("ETL jobs scheduled", daily_full_run="Every 5 Minutes")
 
     def _run_daily_job(self):
         """
@@ -332,7 +340,7 @@ def main():
         print("  --daemon       Run continuously with scheduled jobs")
         print("  --test-schedule Show scheduled job times")
         print("\nScheduled times:")
-        print("  - Full ETL: Daily at 8:00 AM")
+        print("  - Full ETL: Every 5 Minutes")
 
 
 if __name__ == "__main__":

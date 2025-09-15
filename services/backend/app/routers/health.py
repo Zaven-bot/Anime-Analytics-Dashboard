@@ -1,18 +1,12 @@
-# Add ETL source to Python path
-import os
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
+from ..database import database_engine, test_database_connection
+from ..metrics import get_metrics_content
+from ..metrics import metrics as metrics_collector
 from ..services.redis_client import get_redis_client
-
-etl_path = Path("/shared/etl") if os.path.exists("/shared/etl") else Path(__file__).parent.parent.parent.parent / "etl"
-sys.path.append(str(etl_path))
-from src.config import get_settings
-from src.loaders.database import DatabaseLoader
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -43,17 +37,14 @@ async def detailed_health_check():
     }
 
     try:
-        # Test configuration
-        settings = get_settings()
-        if settings:
-            health_status["checks"]["configuration"] = "healthy"
-        else:
-            health_status["checks"]["configuration"] = "unhealthy"
+        # Configuration is always healthy with environment variables
+        health_status["checks"]["configuration"] = "healthy"
 
         # Test database connection
-        db_loader = DatabaseLoader()
-        if db_loader.test_connection():
+        if test_database_connection():
             health_status["checks"]["database"] = "healthy"
+            # Update database connection metrics using centralized function
+            metrics_collector.update_connection_metrics(database_engine, None)
         else:
             health_status["checks"]["database"] = "unhealthy"
             health_status["status"] = "degraded"
@@ -64,6 +55,8 @@ async def detailed_health_check():
             try:
                 await redis_client.ping()
                 health_status["checks"]["redis"] = "healthy"
+                # Update Redis connection pool metrics using centralized function
+                metrics_collector.update_connection_metrics(None, redis_client)
             except Exception as e:
                 logger.warning("Redis ping failed", error=str(e))
                 health_status["checks"]["redis"] = "unhealthy"
@@ -83,3 +76,10 @@ async def detailed_health_check():
         health_status["status"] = "degraded"
 
     return health_status
+
+
+@router.get("/metrics")
+def metrics():
+    """Prometheus metrics endpoint"""
+    metrics_content = get_metrics_content()
+    return Response(content=metrics_content, media_type="text/plain; version=0.0.4; charset=utf-8")

@@ -13,6 +13,7 @@ from src.config import ETL_JOBS, get_settings
 from src.extractors.jikan import JikanExtractor
 from src.loaders.database import DatabaseLoader
 from src.logging_config import setup_logging
+from src.metrics_server import ETLJobMetrics, etl_metrics
 from src.transformers.anime import AnimeTransformer
 
 # Add src to path for imports
@@ -33,6 +34,13 @@ class ETLPipeline:
         self.extractor = None
         self.transformer = AnimeTransformer()
         self.loader = DatabaseLoader()
+
+        # Start metrics server
+        try:
+            etl_metrics.start_server()
+            etl_metrics.update_pipeline_health(True)
+        except Exception as e:
+            logger.error("Failed to start metrics server", error=str(e))
 
         # Pipeline statistics
         self.pipeline_stats = {
@@ -68,36 +76,40 @@ class ETLPipeline:
             "error": None,
         }
 
-        try:
-            # Initialize extractor
-            self.extractor = JikanExtractor()
+        # Use metrics context manager for job tracking
+        with ETLJobMetrics(job_name) as job_metrics:
+            try:
+                # Initialize extractor
+                self.extractor = JikanExtractor()
 
-            async with self.extractor:
-                # EXTRACT
-                logger.info("Starting extraction phase", job_name=job_name)
-                anime_list = await self.extractor.fetch_by_job_config(job_config)
+                async with self.extractor:
+                    # EXTRACT
+                    logger.info("Starting extraction phase", job_name=job_name)
+                    anime_list = await self.extractor.fetch_by_job_config(job_config)
 
-                job_result["extraction"] = {
-                    "anime_count": len(anime_list),
-                    "status": "success",
-                }
+                    job_result["extraction"] = {
+                        "anime_count": len(anime_list),
+                        "status": "success",
+                    }
 
-                logger.info(
-                    "Extraction completed",
-                    job_name=job_name,
-                    anime_count=len(anime_list),
-                )
+                    logger.info(
+                        "Extraction completed",
+                        job_name=job_name,
+                        anime_count=len(anime_list),
+                    )
 
-                if not anime_list:
-                    logger.warning("No anime data extracted", job_name=job_name)
-                    job_result["status"] = "success_no_data"
-                    return job_result
+                    if not anime_list:
+                        logger.warning("No anime data extracted", job_name=job_name)
+                        job_result["status"] = "success_no_data"
+                        return job_result
 
-                # TRANSFORM
-                logger.info("Starting transformation phase", job_name=job_name)
-                snapshots = self.transformer.transform_anime_list(anime_list, job_config["snapshot_type"], date.today())
+                    # TRANSFORM
+                    logger.info("Starting transformation phase", job_name=job_name)
+                    snapshots = self.transformer.transform_anime_list(
+                        anime_list, job_config["snapshot_type"], date.today()
+                    )
 
-                transformation_summary = self.transformer.get_transformation_summary()
+                    transformation_summary = self.transformer.get_transformation_summary()
                 job_result["transformation"] = transformation_summary
 
                 logger.info(
@@ -125,17 +137,20 @@ class ETLPipeline:
                 self.pipeline_stats["total_anime_processed"] += len(anime_list)
                 self.pipeline_stats["total_snapshots_loaded"] += loading_stats["successful_inserts"]
 
+                # Track processed records for metrics
+                job_metrics.add_processed_records(loading_stats["successful_inserts"])
+
                 job_result["status"] = "success"
 
-        # Freak accident
-        except Exception as e:
-            error_msg = f"ETL job failed: {str(e)}"
-            logger.error("ETL job failed", job_name=job_name, error=error_msg)
+            # Freak accident
+            except Exception as e:
+                error_msg = f"ETL job failed: {str(e)}"
+                logger.error("ETL job failed", job_name=job_name, error=error_msg)
 
-            job_result["error"] = error_msg
-            job_result["status"] = "failed"
+                job_result["error"] = error_msg
+                job_result["status"] = "failed"
 
-            self.pipeline_stats["errors"].append({"job_name": job_name, "error": error_msg})
+                self.pipeline_stats["errors"].append({"job_name": job_name, "error": error_msg})
 
         return job_result
 
