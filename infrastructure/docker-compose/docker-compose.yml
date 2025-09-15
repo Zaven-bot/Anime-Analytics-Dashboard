@@ -16,7 +16,8 @@ services:
       interval: 5s # Run check every 5 seconds
       timeout: 5s # Consider it failed if it takes longer than 5 seconds
       retries: 5 # Try 5 times before marking container as unhealthy
-
+    network:
+      - anime-network
   redis:
     image: redis:7-alpine
     container_name: anime_redis
@@ -29,7 +30,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-
+    network:
+      - anime-network
+      
   backend:
     build:
       context: ../../services/backend
@@ -49,6 +52,8 @@ services:
     volumes:
       - ../../services/backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    network:
+      - anime-network
 
   etl:
     build:
@@ -70,6 +75,8 @@ services:
     # ETL will run as a cron job or on-demand, not continuously
     profiles:
       - etl # "docker compose --profile etl up" to run
+    network:
+      - anime-network
 
   # ETL Scheduler Service - Automated daily data collection
   etl-scheduler:
@@ -84,7 +91,7 @@ services:
       - JIKAN_RATE_LIMIT_DELAY=1.0
       - TZ=UTC  # Critical: scheduler needs timezone
     ports:
-      - "9090:9090"  # Expose ETL metrics port on scheduler service
+      - "9090"  # Expose ETL metrics port on scheduler service
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,6 +103,8 @@ services:
     restart: unless-stopped
     profiles:
       - scheduler  # "docker compose --profile scheduler up" to run scheduled ETL
+    network:
+      - anime-network
 
   frontend:
     build:
@@ -113,6 +122,8 @@ services:
       - /app/node_modules # Overrides host node_modules to let container manage its own
     command: npm start # Start React development server
     # npm run build # Uncomment for prod build
+    network:
+      - anime-network
 
   # PostgreSQL Metrics Exporter
   postgres-exporter:
@@ -128,6 +139,8 @@ services:
     restart: unless-stopped
     profiles:
       - observability
+    network:
+      - anime-network
 
   # Redis Metrics Exporter  
   redis-exporter:
@@ -144,6 +157,8 @@ services:
     restart: unless-stopped
     profiles:
       - observability
+    network:
+      - anime-network
 
   # Prometheus Monitoring Server
   prometheus:
@@ -170,6 +185,8 @@ services:
     restart: unless-stopped
     profiles:
       - observability
+    network:
+      - anime-network
 
 volumes:
   postgres_data:
@@ -177,3 +194,7 @@ volumes:
     name: animedashboard_postgres_data
   redis_data:
   prometheus_data:
+
+networks:
+  anime-network:
+    driver: bridge
