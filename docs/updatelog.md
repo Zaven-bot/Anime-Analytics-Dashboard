@@ -641,3 +641,125 @@ def update_connection_metrics(self, db_engine=None, redis_client=None):
 
 ### Next Step
 - Begin testing observability stack with clean metric boundaries
+
+## Week 3 Day 2 — Prometheus Setup & Infrastructure Exporters - COMPLETED
+
+**Goal**: Deploy complete observability stack with Prometheus, infrastructure exporters, and comprehensive metrics collection.
+
+### Tasks Completed
+
+**Prometheus Configuration**
+- Created `infrastructure/observability/prometheus/prometheus.yml` with optimized scrape targets
+- Configured scrape intervals: 15s for applications, 30s for infrastructure
+- Set up service discovery using Docker service names
+
+**Infrastructure Exporters Integration** 
+- Added `postgres-exporter:9187` for comprehensive PostgreSQL metrics
+- Added `redis-exporter:9121` for Redis server monitoring
+- Using official community images for reliability and maintenance
+
+**Docker Compose Orchestration**
+- Integrated observability services with profiles for flexible deployment
+- Resolved port conflicts (ETL scheduler internal-only on 9090)
+- Fixed network configuration syntax across all services
+- Added `anime-network` bridge for proper service communication
+
+**Full Stack Deployment & Validation**
+- Successfully deployed 8 services: backend, frontend, ETL, databases, Prometheus, exporters
+- All Prometheus targets reporting `"health":"up"` with no errors
+- Validated metrics collection across all service endpoints
+
+### Architecture Overview
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Applications  │    │   Infrastructure │    │   Prometheus    │
+│                 │    │    Exporters     │    │                 │
+│ • Backend:8000  │───▶│ • postgres-exp   │───▶│ • Collection    │
+│ • ETL:9090      │    │   :9187          │    │ • Storage       │
+│                 │    │ • redis-exp      │    │ • Query Engine  │
+│                 │    │   :9121          │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+### Service Access Points
+
+- **Prometheus Dashboard**: http://localhost:9090
+- **Backend Metrics**: `http://backend:8000/metrics` (internal)
+- **ETL Metrics**: `http://etl-scheduler:9090/metrics` (internal)
+- **PostgreSQL Metrics**: `http://postgres-exporter:9187/metrics`
+- **Redis Metrics**: `http://redis-exporter:9121/metrics`
+
+### Metrics Collection Results
+
+**Application Metrics (Backend)**:
+- `anime_dashboard_http_requests_total` - HTTP request tracking
+- `redis_cache_operations_total` - Cache performance metrics
+
+**Infrastructure Metrics**:
+- **PostgreSQL**: 100+ metrics including `pg_stat_database_*`, `pg_settings_*`, `pg_stat_user_tables_*`
+- **Redis**: 100+ metrics including `redis_memory_used_*`, `redis_commands_*`, `redis_connected_clients`
+
+### Deployment Commands
+
+```bash
+# Start full observability + application stack
+docker compose --profile observability --profile scheduler up -d --build
+
+# Validate all targets are healthy
+curl -s 'http://localhost:9090/api/v1/targets' | grep '"health"'
+
+# Check service status
+docker compose ps
+```
+
+### Problem Resolution
+
+**Issues Encountered & Solved**:
+1. Port 9090 conflict between Prometheus and ETL → made ETL internal-only
+2. Network syntax errors → fixed `network:` vs `networks:` configuration
+3. Broken infrastructure metrics → removed from application, used external exporters
+
+### Configuration Highlights
+
+**Prometheus Scrape Configuration**:
+```yaml
+scrape_configs:
+  - job_name: 'anime-backend'
+    static_configs:
+      - targets: ['backend:8000']
+    scrape_interval: 15s
+
+  - job_name: 'anime-etl'  
+    static_configs:
+      - targets: ['etl-scheduler:9090']
+    scrape_interval: 15s
+
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121'] 
+    scrape_interval: 30s
+```
+
+### Interview Storytelling Framework
+
+**Situation**: "After instrumenting application metrics, we needed a centralized monitoring system to collect, store, and query metrics across our distributed services."
+
+**Task**: "Deploy a production-ready Prometheus stack with infrastructure exporters while avoiding service disruption and resolving port conflicts in our Docker environment."
+
+**Action**: "I designed a multi-tier approach: Prometheus as the central collector, dedicated exporters for infrastructure metrics (PostgreSQL, Redis), and proper network isolation. The key challenge was port conflict resolution - Prometheus needed 9090, but our ETL service was already using it. I reconfigured ETL to be internal-only and exposed Prometheus externally."
+
+**Result**: "Achieved 100% target health across 5 scrape endpoints collecting 200+ metrics. The observability stack now provides real-time insights into application performance, database health, and cache utilization with zero application downtime during deployment."
+
+**Technical Deep-Dive Topics**:
+- Service discovery in containerized environments
+- Infrastructure monitoring vs application monitoring separation
+- Docker networking and port management strategies  
+- Prometheus configuration and target management
+- Metrics cardinality and storage considerations
+- Graceful service deployment with health checks
