@@ -1,0 +1,64 @@
+# Prometheus Configuration for AnimeDashboard
+# Scrapes metrics from all services and infrastructure components
+
+global:
+  scrape_interval: 15s          # Default scrape interval for application metrics
+  evaluation_interval: 15s      # How frequently to evaluate rules
+  external_labels:
+    cluster: 'anime-dashboard'
+    environment: 'development'
+
+# Rule files (for alerting - Week 4)
+rule_files:
+  # - "alert_rules.yml"
+
+# Scrape configuration for all targets
+scrape_configs:
+  # AnimeDashboard Backend API Metrics
+  - job_name: 'anime-backend'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['backend:8000']
+    scrape_timeout: 10s
+    
+  # AnimeDashboard ETL Pipeline Metrics
+  - job_name: 'anime-etl'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['etl:9090']
+    scrape_timeout: 10s
+
+  # PostgreSQL Database Metrics
+  - job_name: 'postgres-exporter'
+    scrape_interval: 30s          # Database metrics can be less frequent
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_timeout: 10s
+
+  # Redis Cache Metrics
+  - job_name: 'redis-exporter'
+    scrape_interval: 30s          # Cache metrics can be less frequent
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_timeout: 10s
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9090']
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 30d           # Keep metrics for 30 days
+    retention.size: 10GB          # Limit storage to 10GB
+    
+# Optional: Remote write configuration for production
+# remote_write:
+#   - url: "https://your-remote-prometheus-endpoint/api/v1/write"
+#     basic_auth:
+#       username: "username"
+#       password: "password"

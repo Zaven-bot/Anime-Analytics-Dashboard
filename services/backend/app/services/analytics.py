@@ -35,9 +35,6 @@ class AnalyticsService:
             "seasonal_trends": 900,  # 15 minutes
         }
 
-        # Update connection pool metrics using centralized function
-        metrics.update_connection_metrics(self.engine, self.redis_client)
-
     def _get_cache_key(self, prefix: str, **kwargs) -> str:
         """Generate consistent cache keys"""
         key_parts = [f"anime:{prefix}"]
@@ -100,9 +97,6 @@ class AnalyticsService:
         start_time = time.time()
         session = get_database_session()
         try:
-            # Update connection metrics using centralized function
-            metrics.update_connection_metrics(self.engine, self.redis_client)
-
             # Total snapshots
             total_query = text("SELECT COUNT(*) FROM anime_snapshots")
             total_snapshots = session.execute(total_query).scalar()

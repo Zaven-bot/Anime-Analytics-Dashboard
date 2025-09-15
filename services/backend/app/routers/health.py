@@ -3,9 +3,8 @@ from datetime import datetime, timezone
 import structlog
 from fastapi import APIRouter, HTTPException, Response
 
-from ..database import database_engine, test_database_connection
+from ..database import test_database_connection
 from ..metrics import get_metrics_content
-from ..metrics import metrics as metrics_collector
 from ..services.redis_client import get_redis_client
 
 logger = structlog.get_logger(__name__)
@@ -43,8 +42,6 @@ async def detailed_health_check():
         # Test database connection
         if test_database_connection():
             health_status["checks"]["database"] = "healthy"
-            # Update database connection metrics using centralized function
-            metrics_collector.update_connection_metrics(database_engine, None)
         else:
             health_status["checks"]["database"] = "unhealthy"
             health_status["status"] = "degraded"
@@ -55,8 +52,6 @@ async def detailed_health_check():
             try:
                 await redis_client.ping()
                 health_status["checks"]["redis"] = "healthy"
-                # Update Redis connection pool metrics using centralized function
-                metrics_collector.update_connection_metrics(None, redis_client)
             except Exception as e:
                 logger.warning("Redis ping failed", error=str(e))
                 health_status["checks"]["redis"] = "unhealthy"

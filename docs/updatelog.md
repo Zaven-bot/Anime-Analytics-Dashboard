@@ -435,11 +435,11 @@ The Docker Compose infrastructure provides a complete development and deployment
 
 ---
 
-## CI/CD Pipeline with Environment-Aware Integration Testing
+#### CI/CD Pipeline with Environment-Aware Integration Testing
 
 **Implementation:** GitHub Actions workflow (`.github/workflows/ci.yml`) with automatic environment detection and real service integration testing.
 
-### Key Features
+##### Key Features
 
 **Local Environment (Docker Compose):**
 - PostgreSQL on port 5433, database `anime_dashboard`
@@ -460,14 +460,14 @@ if os.getenv('GITHUB_ACTIONS'):
     jikan_rate_limit_delay = 2.0  # Conservative for CI
 ```
 
-### Pipeline Jobs
+##### Pipeline Jobs
 
 1. **Code Quality** (non-blocking): flake8, black, mypy
 2. **Unit Tests**: 136+ tests with mocks, coverage reporting
 3. **Integration Tests**: Real PostgreSQL + Redis testing in both environments
 4. **Docker Builds**: All three services with health validation
 
-### Testing Commands
+##### Testing Commands
 
 ```bash
 # Run all tests locally (needs Docker Compose running)
@@ -480,7 +480,7 @@ python tests/integration/test_redis_cache_integration_simple.py # Redis cache te
 curl http://localhost:8000/health
 curl http://localhost:8000/analytics/database-stats
 ```
-### Integration Test Coverage
+##### Integration Test Coverage
 
 - **ETL Pipeline**: Complete data flow from Jikan API → PostgreSQL (6 tests)
 - **API Endpoints**: FastAPI health and analytics validation  
@@ -618,3 +618,26 @@ def update_connection_metrics(self, db_engine=None, redis_client=None):
 - "What's your approach to service decoupling when you discover tight coupling?"
 
 **Key Takeaway**: This day demonstrates both technical depth (Prometheus internals, Python import mechanics) and systems thinking (service isolation, graceful degradation, operational maintainability). Perfect foundation for discussing production observability in SRE interviews.
+
+### Completed Tasks
+- Removed non-functional infrastructure metrics:
+  - `database_connections_active`
+  - `redis_connection_pool_size`
+  - `redis_connection_pool_available`
+  - `update_connection_metrics()` method
+
+### Retained Application Metrics
+- `redis_cache_operations_total` – cache hit/miss tracking  
+- `http_requests_total` – HTTP request monitoring  
+- `database_queries_total` – database query tracking  
+- `analytics_queries_duration_seconds` – query performance monitoring  
+
+### Architecture Adjustments
+- Separated application metrics from infrastructure metrics  
+- Delegated infrastructure metrics to exporters:
+  - Redis: `redis-exporter`
+  - PostgreSQL: `postgres-exporter`  
+- Application now focuses solely on business logic and performance indicators
+
+### Next Step
+- Begin testing observability stack with clean metric boundaries
