@@ -49,18 +49,13 @@ class TestRedisCaching:
         # Setup: Redis returns None (cache miss)
         mock_redis_client.get.return_value = None
         
-        # Mock database response
-        with patch('services.backend.app.services.analytics.DatabaseLoader') as mock_db_loader:
-            mock_db_instance = Mock()
-            mock_db_loader.return_value = mock_db_instance
-            
-            result = await analytics_service._get_cached_data("test:key")
-            
-            # Should return None for cache miss
-            assert result is None
-            
-            # Redis should have been queried
-            mock_redis_client.get.assert_called_once_with("test:key")
+        result = await analytics_service._get_cached_data("test:key")
+        
+        # Should return None for cache miss
+        assert result is None
+        
+        # Redis should have been queried
+        mock_redis_client.get.assert_called_once_with("test:key")
 
     @pytest.mark.asyncio
     async def test_cache_hit_behavior(self, analytics_service, mock_redis_client):
@@ -202,10 +197,39 @@ class TestAnalyticsServiceCaching:
     @pytest.mark.asyncio
     async def test_database_stats_caching(self, analytics_service, mock_redis_client):
         """Test that database stats are cached properly"""
-        # Mock database query  
-        with patch.object(analytics_service, 'SessionLocal') as mock_session:
+        # Mock database session and query results
+        with patch('services.backend.app.services.analytics.get_database_session') as mock_get_session:
+            mock_session = Mock()
+            mock_get_session.return_value = mock_session
+            
+            # Mock different query types used in get_database_stats
+            mock_result_scalar = Mock()
+            mock_result_scalar.scalar.return_value = 100
+            
+            # Mock result for latest_date query (should return datetime)
+            mock_date_result = Mock()
+            mock_date_result.scalar.return_value = datetime(2025, 9, 15, 10, 0, 0)
+            
+            # Mock the iteration result  
+            mock_row = Mock()
+            mock_row.snapshot_type = "top_anime"
+            mock_row.count = 50
+            mock_row.latest_date = None
+            mock_result_iter = [mock_row]  # Direct list for iteration
+            
+            # Set up execute to return different results for different queries
+            mock_session.execute.side_effect = [
+                mock_result_scalar,    # total_snapshots query
+                mock_result_iter,      # snapshot_types query (directly iterable) 
+                mock_date_result,      # latest_date query (datetime object)
+                mock_result_scalar     # unique_anime query
+            ]
+            
             # First call should hit database and cache result
             result = await analytics_service.get_database_stats()
+            
+            # Verify database was queried
+            mock_get_session.assert_called_once()
             
             # Verify caching was attempted (should try to setex cache)
             mock_redis_client.setex.assert_called()
@@ -221,14 +245,14 @@ class TestAnalyticsServiceCaching:
         }
         mock_redis_client.get.return_value = json.dumps(cached_stats)
         
-        with patch.object(analytics_service, 'SessionLocal') as mock_session:
+        with patch('services.backend.app.services.analytics.get_database_session') as mock_get_session:
             result = await analytics_service.get_database_stats()
             
             # Should return cached data
             assert result == cached_stats
             
             # Database should not be queried since we got cache hit
-            # (Redis get was called and returned data)
+            mock_get_session.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cache_bypass_on_error(self, analytics_service, mock_redis_client):
@@ -236,11 +260,37 @@ class TestAnalyticsServiceCaching:
         # Setup cache failure
         mock_redis_client.get.side_effect = ConnectionError("Redis unavailable")
         
-        with patch.object(analytics_service, 'SessionLocal') as mock_session:
+        with patch('services.backend.app.services.analytics.get_database_session') as mock_get_session:
+            mock_session = Mock()
+            mock_get_session.return_value = mock_session
+            
+            # Mock different query types used in get_database_stats
+            mock_result_scalar = Mock()
+            mock_result_scalar.scalar.return_value = 50
+            
+            # Mock result for latest_date query (should return datetime)
+            mock_date_result = Mock()
+            mock_date_result.scalar.return_value = datetime(2025, 9, 15, 12, 0, 0)
+            
+            # Mock the iteration result
+            mock_row = Mock()
+            mock_row.snapshot_type = "top_anime"
+            mock_row.count = 25
+            mock_row.latest_date = None
+            mock_result_iter = [mock_row]  # Direct list for iteration
+            
+            # Set up execute to return different results for different queries
+            mock_session.execute.side_effect = [
+                mock_result_scalar,    # total_snapshots query
+                mock_result_iter,      # snapshot_types query (directly iterable)
+                mock_date_result,      # latest_date query (datetime object)
+                mock_result_scalar     # unique_anime query
+            ]
+            
             result = await analytics_service.get_database_stats()
             
             # Should fallback to database when cache fails
-            # The exact result will depend on the actual database query
+            mock_get_session.assert_called_once()
             assert result is not None
 
 

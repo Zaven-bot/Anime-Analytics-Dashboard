@@ -575,7 +575,7 @@ def _update_connection_metrics(self, db_engine, redis_client):
         logger.warning("Connection pool metrics unavailable", error=str(e))
 ```
 
-**Interview Insight**: *"This taught me that library APIs can vary between versions, so production monitoring code needs defensive programming with graceful fallbacks. It's like building a car dashboard that still shows speed even if the fancy digital display fails - you always need a backup gauge."*
+**Interview Insight**: *"This taught me that library APIs can vary between versions, so production monitoring code needs defensive programming with graceful fallbacks."*
 
 #### Code Quality & Maintainability Improvements
 

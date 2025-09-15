@@ -30,7 +30,7 @@ class TestDependencyInjection:
         
         # Validate service instance
         assert isinstance(service, AnalyticsService)
-        assert hasattr(service, 'db_loader')
+        assert hasattr(service, 'engine')
         assert hasattr(service, 'redis_client')
 
     async def test_dependency_override_system(self, client):
@@ -103,7 +103,7 @@ class TestServiceLifecycle:
         
         # Verify initialization
         assert service is not None
-        assert hasattr(service, 'db_loader')
+        assert hasattr(service, 'engine')
         assert hasattr(service, 'redis_client')
 
     async def test_service_error_handling(self):

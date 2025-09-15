@@ -62,6 +62,7 @@ def test_database_connection() -> bool:
 
         with database_engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
-            return result.fetchone()[0] == 1
+            row = result.fetchone()
+            return row is not None and row[0] == 1
     except Exception:
         return False

@@ -20,6 +20,7 @@ redis-data/
 
 # VSCode
 .vscode/
+copilot-instructions.md
 
 # Test/coverage
 .coverage

@@ -38,13 +38,11 @@ class TestHealthEndpoints:
         assert isinstance(timestamp, datetime)
 
     @patch('services.backend.app.routers.health.get_redis_client')
-    @patch('services.backend.app.routers.health.DatabaseLoader')
-    async def test_detailed_health_check_all_healthy(self, mock_db_loader, mock_redis_client, client):
+    @patch('services.backend.app.routers.health.test_database_connection')
+    async def test_detailed_health_check_all_healthy(self, mock_db_connection, mock_redis_client, client):
         """Test detailed health check when all services are healthy"""
-        # Mock database connection
-        mock_db_instance = Mock()
-        mock_db_instance.test_connection.return_value = True
-        mock_db_loader.return_value = mock_db_instance
+        # Mock database connection directly
+        mock_db_connection.return_value = True
         
         # Mock Redis connection
         mock_redis = AsyncMock()
@@ -66,13 +64,12 @@ class TestHealthEndpoints:
         assert checks["redis"] == "healthy"
 
     @patch('services.backend.app.routers.health.get_redis_client')
-    @patch('services.backend.app.routers.health.DatabaseLoader')
-    async def test_detailed_health_check_database_unhealthy(self, mock_db_loader, mock_redis_client, client):
+    @patch('services.backend.app.routers.health.test_database_connection')
+    async def test_detailed_health_check_database_unhealthy(self, mock_db_connection, mock_redis_client, client):
         """Test detailed health check when database is unhealthy"""
         # Mock failed database connection
-        mock_db_instance = Mock()
-        mock_db_instance.test_connection.return_value = False
-        mock_db_loader.return_value = mock_db_instance
+        # Mock database connection directly
+        mock_db_connection.return_value = False
         
         # Mock healthy Redis connection
         mock_redis = AsyncMock()
@@ -93,13 +90,12 @@ class TestHealthEndpoints:
         assert checks["redis"] == "healthy"
 
     @patch('services.backend.app.routers.health.get_redis_client')
-    @patch('services.backend.app.routers.health.DatabaseLoader')
-    async def test_detailed_health_check_redis_unhealthy(self, mock_db_loader, mock_redis_client, client):
+    @patch('services.backend.app.routers.health.test_database_connection')
+    async def test_detailed_health_check_redis_unhealthy(self, mock_db_connection, mock_redis_client, client):
         """Test detailed health check when Redis is unhealthy"""
         # Mock healthy database connection
-        mock_db_instance = Mock()
-        mock_db_instance.test_connection.return_value = True
-        mock_db_loader.return_value = mock_db_instance
+        # Mock database connection directly
+        mock_db_connection.return_value = True
         
         # Mock failed Redis connection
         mock_redis = AsyncMock()
@@ -120,13 +116,12 @@ class TestHealthEndpoints:
         assert checks["redis"] == "unhealthy"
 
     @patch('services.backend.app.routers.health.get_redis_client')
-    @patch('services.backend.app.routers.health.DatabaseLoader')
-    async def test_detailed_health_check_all_unhealthy(self, mock_db_loader, mock_redis_client, client):
+    @patch('services.backend.app.routers.health.test_database_connection')
+    async def test_detailed_health_check_all_unhealthy(self, mock_db_connection, mock_redis_client, client):
         """Test detailed health check when all services are unhealthy"""
         # Mock failed database connection
-        mock_db_instance = Mock()
-        mock_db_instance.test_connection.return_value = False
-        mock_db_loader.return_value = mock_db_instance
+        # Mock database connection directly
+        mock_db_connection.return_value = False
         
         # Mock failed Redis connection
         mock_redis = AsyncMock()
@@ -170,10 +165,10 @@ class TestHealthRouterErrorHandling:
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
 
-    @patch('services.backend.app.routers.health.DatabaseLoader')
-    async def test_database_loader_exception(self, mock_db_loader, client):
+    @patch('services.backend.app.routers.health.test_database_connection')
+    async def test_database_loader_exception(self, mock_db_connection, client):
         """Test handling of database loader instantiation exception"""
-        mock_db_loader.side_effect = Exception("Failed to initialize database loader")
+        mock_db_connection.side_effect = Exception("Failed to initialize database loader")
         
         response = await client.get("/health/detailed")
         
@@ -230,13 +225,12 @@ class TestHealthCheckIntegration:
         assert response_time < 1.0  # Should respond within 1 second
 
     @patch('services.backend.app.routers.health.get_redis_client')
-    @patch('services.backend.app.routers.health.DatabaseLoader')
-    async def test_health_check_caching(self, mock_db_loader, mock_redis_client, client):
+    @patch('services.backend.app.routers.health.test_database_connection')
+    async def test_health_check_caching(self, mock_db_connection, mock_redis_client, client):
         """Test that health checks can be cached appropriately"""
         # Mock healthy services
-        mock_db_instance = Mock()
-        mock_db_instance.test_connection.return_value = True
-        mock_db_loader.return_value = mock_db_instance
+        # Mock database connection directly
+        mock_db_connection.return_value = True
         
         mock_redis = AsyncMock()
         mock_redis.ping.return_value = True
