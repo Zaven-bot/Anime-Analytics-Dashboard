@@ -7,7 +7,7 @@ import time
 from datetime import date
 from typing import Any, Dict, List
 
-from logging_config import setup_logging
+from ..logging_config import setup_logging
 from sqlalchemy import (
     DECIMAL,
     JSON,

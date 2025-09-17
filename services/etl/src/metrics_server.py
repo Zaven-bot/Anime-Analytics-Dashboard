@@ -7,10 +7,10 @@ import threading
 import time
 from typing import Optional
 
-import structlog
+from .logging_config import setup_logging
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, start_http_server
 
-logger = structlog.get_logger(__name__)
+logger = setup_logging("etl-metrics-server")
 
 
 # ETL Job Metrics

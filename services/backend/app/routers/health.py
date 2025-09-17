@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from logging_config import setup_logging
+from ..logging_config import setup_logging
 from fastapi import APIRouter, HTTPException, Response
 
 from ..database import test_database_connection

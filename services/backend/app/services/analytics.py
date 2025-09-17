@@ -8,14 +8,12 @@ import time
 from typing import Any, Dict, List, Optional, cast
 
 import redis.asyncio as redis
-import structlog
-from logging_config import setup_logging
+from ..logging_config import setup_logging
+from sqlalchemy import text
+
 logger = setup_logging("backend-services-analytics")
 from ..database import database_engine, get_database_session
 from ..metrics import metrics
-
-logger = structlog.get_logger(__name__)
-
 
 class AnalyticsService:
     """

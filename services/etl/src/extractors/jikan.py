@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List, Optional  # Type hints
 
 import httpx  # Async HTTP client
-from logging_config import setup_logging
+from ..logging_config import setup_logging
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential  # Retry logic
 
 from ..config import get_settings
