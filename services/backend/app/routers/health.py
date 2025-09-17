@@ -1,13 +1,13 @@
 from datetime import datetime, timezone
 
-import structlog
+from logging_config import setup_logging
 from fastapi import APIRouter, HTTPException, Response
 
 from ..database import test_database_connection
 from ..metrics import get_metrics_content
 from ..services.redis_client import get_redis_client
 
-logger = structlog.get_logger(__name__)
+logger = setup_logging("backend-routers-health")
 router = APIRouter()
 
 

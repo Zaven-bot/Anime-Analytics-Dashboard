@@ -6,14 +6,14 @@ Tracks HTTP requests, response times, and integrates with Prometheus metrics.
 import time
 from typing import Callable
 
-import structlog
+from logging_config import setup_logging
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from .metrics import metrics
 
-logger = structlog.get_logger(__name__)
+logger = setup_logging("backend-middleware")
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

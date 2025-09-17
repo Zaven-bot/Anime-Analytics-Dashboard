@@ -3,7 +3,7 @@ Analytics API endpoints
 Serves aggregated analytics data from the ETL pipeline
 """
 
-import structlog
+from logging_config import setup_logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..models.responses import (
@@ -19,7 +19,7 @@ from ..models.responses import (
 from ..services.analytics import AnalyticsService
 from ..services.redis_client import get_redis
 
-logger = structlog.get_logger(__name__)
+logger = setup_logging("backend-routers-analytics")
 router = APIRouter()
 
 

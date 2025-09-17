@@ -6,7 +6,7 @@ FastAPI application that serves analytics data with direct database access.
 import logging
 from contextlib import asynccontextmanager
 
-import structlog
+from logging_config import setup_logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -41,7 +41,7 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
-logger = structlog.get_logger(__name__)
+logger = setup_logging("backend-main")
 
 
 @asynccontextmanager

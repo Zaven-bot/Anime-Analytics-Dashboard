@@ -7,7 +7,7 @@ import time
 from datetime import date
 from typing import Any, Dict, List
 
-import structlog
+from logging_config import setup_logging
 from sqlalchemy import (
     DECIMAL,
     JSON,
@@ -37,7 +37,7 @@ try:
 except ImportError:
     ETL_METRICS_AVAILABLE = False
 
-logger = structlog.get_logger(__name__)
+logger = setup_logging("etl-loaders-database")
 
 
 class DatabaseLoader:
