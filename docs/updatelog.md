@@ -763,3 +763,156 @@ scrape_configs:
 - Prometheus configuration and target management
 - Metrics cardinality and storage considerations
 - Graceful service deployment with health checks
+
+### Next Steps
+- **Week 3 Day 3**: Grafana integration for visual dashboards
+- Set up alerting rules for critical thresholds
+- Create business-specific monitoring views
+- Integrate structured logging with Loki
+
+## Week 3 Day 3 — Grafana Setup & Dashboard Infrastructure - COMPLETED
+
+**Goal**: Deploy comprehensive Grafana visualization stack with rich application metrics integration and dashboard-as-code infrastructure.
+
+### Tasks Completed
+
+**✅ Grafana Deployment with Persistence**
+- Successfully deployed Grafana container with proper data persistence using Docker Compose
+- Configured volume mounting for `/var/lib/grafana` to ensure dashboard and configuration persistence
+- Integrated with existing observability stack using profile-based deployment
+
+**✅ Grafana Provisioning Infrastructure**
+- Created automated provisioning structure for reproducible deployments:
+  - `infrastructure/observability/grafana/provisioning/datasources/prometheus.yml`: Prometheus datasource configuration
+  - `infrastructure/observability/grafana/provisioning/dashboards/dashboard.yml`: Dashboard provider configuration
+  - `infrastructure/observability/grafana/dashboards/`: JSON dashboard files for automatic loading
+- Implemented dashboard-as-code approach for version control and automated deployment
+
+**✅ Datasource Configuration Resolution**
+- **Fixed critical datasource provisioning issue**: Resolved "Datasource prometheus was not found" errors
+- **Root cause**: Datasource UID mismatch between provisioning config and dashboard expectations
+- **Solution**: Standardized datasource UID to `prometheus` with simplified configuration:
+  ```yaml
+  datasources:
+    - name: Prometheus
+      type: prometheus
+      uid: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+  ```
+- **Result**: Clean container restart with proper datasource provisioning and dashboard connectivity
+
+**✅ Comprehensive Application Performance Dashboard**
+Created advanced dashboard leveraging all available application metrics:
+
+**HTTP Performance Monitoring:**
+- **Request Rate**: `rate(anime_dashboard_http_requests_total[5m])` by endpoint, method, and status code
+- **Response Time Analysis**: 95th/50th percentile and average using histogram quantiles:
+  ```promql
+  histogram_quantile(0.95, rate(anime_dashboard_http_request_duration_seconds_bucket[5m]))
+  ```
+- **Request Volume Statistics**: Total HTTP requests counter with real-time tracking
+
+**Cache Performance Analytics:**
+- **Hit Rate Visualization**: Pie chart showing cache effectiveness across all operations
+- **Cache Operations by Type**: Detailed tracking of hits/misses by cache key type (top_rated, seasonal_trends, genre_distribution, database_stats)
+- **Overall Cache Hit Rate**: Single-value stat with color-coded thresholds (red <80%, yellow 80-90%, green >90%)
+
+**Database Query Performance:**
+- **Query Rate by Type**: Real-time database query rate showing top_rated, seasonal_trends, genre_distribution, etc.
+- **Query Duration Analysis**: 95th percentile and average query execution time using analytics histogram:
+  ```promql
+  histogram_quantile(0.95, rate(anime_dashboard_analytics_queries_duration_seconds_bucket[5m]))
+  ```
+
+**Key Performance Indicators:**
+- **Total HTTP Requests**: Lifetime request counter
+- **Total Database Queries**: Cumulative query execution count
+- **95th Percentile Response Time**: Real-time API performance indicator
+- **Overall Cache Hit Rate**: Application-wide caching effectiveness
+
+### Infrastructure Architecture
+
+**Grafana Service Configuration:**
+- **Port**: `localhost:3001` (avoiding frontend conflict on 3000)
+- **Authentication**: Admin/admin123 for development access
+- **Data Persistence**: Named volume `grafana_data` for configuration retention
+- **Network**: Connected to `anime-network` for service discovery
+
+**Dashboard Features:**
+- **30-second refresh rate** for near real-time monitoring
+- **1-hour time range** with customizable time picker
+- **Dark theme** optimized for monitoring environments
+- **Tagged organization**: application, performance, http, cache, database tags
+- **Color-coded thresholds** for immediate visual status indication
+
+### Metrics Integration Success
+
+**Application Metrics Successfully Integrated:**
+- `anime_dashboard_http_requests_total` - Request counting and rate calculation
+- `anime_dashboard_http_request_duration_seconds_bucket` - Response time percentiles
+- `anime_dashboard_redis_cache_operations_total` - Cache hit/miss tracking
+- `anime_dashboard_database_queries_total` - Database query rate monitoring
+- `anime_dashboard_analytics_queries_duration_seconds_bucket` - Query performance analysis
+
+**Dashboard Visualization Types:**
+- **Time Series Charts**: Request rates, response times, cache operations, query performance
+- **Pie Charts**: Cache hit rate visualization with percentage breakdowns
+- **Stat Panels**: KPI displays with thresholds and color coding
+- **Multi-Query Panels**: Combined metrics showing hits vs misses, percentiles vs averages
+
+### Deployment & Access
+
+**Service Access Points:**
+- **Grafana Dashboard**: http://localhost:3001 (admin/admin123)
+- **Prometheus Metrics Source**: http://localhost:9090 (internal to Grafana)
+- **Application Metrics**: All endpoints automatically scraped and visualized
+
+**Docker Compose Integration:**
+```bash
+# Start observability + scheduler stack
+docker compose --profile observability --profile scheduler up -d
+
+# Services running:
+# - anime_grafana (port 3001)
+# - anime_prometheus (port 9090)  
+# - anime_postgres_exporter (port 9187)
+# - anime_redis_exporter (port 9121)
+# - anime_backend (port 8000) 
+# - anime_etl_scheduler (port 9090 internal)
+# - anime_frontend (port 3000)
+# - anime_postgres (port 5433)
+# - anime_redis (port 6379)
+```
+
+### Problem Resolution & Technical Learning
+
+**Datasource Provisioning Challenge:**
+- **Issue**: Dashboard showing "Datasource prometheus was not found" 
+- **Investigation**: Found UID mismatch between dashboard JSON (`uid: prometheus`) and auto-generated UIDs in provisioning
+- **Solution**: Explicit UID assignment in datasource configuration
+- **Lesson**: Dashboard-as-code requires consistent UID management for reliable automation
+
+**Container Persistence:**
+- **Challenge**: Configuration loss on container restarts
+- **Solution**: Proper volume mapping and clean container restart workflow
+- **Result**: Dashboards and datasource configurations persist across deployments
+
+### Interview Storytelling Framework
+
+**Situation**: "We had comprehensive metrics collection but needed visual dashboards for operational insights and performance monitoring."
+
+**Task**: "Deploy Grafana with automated provisioning to create production-ready dashboards while solving datasource connectivity issues that were preventing dashboard functionality."
+
+**Action**: "I implemented dashboard-as-code using Grafana provisioning with JSON-based dashboards stored in version control. The key challenge was resolving datasource UID mismatches that were preventing dashboard operation. I debugged the provisioning process by examining container logs and fixed it with explicit UID configuration."
+
+**Result**: "Deployed a comprehensive monitoring dashboard displaying real-time HTTP performance, cache analytics, and database query performance. The dashboard uses advanced Prometheus queries like histogram quantiles for response time analysis and rate calculations for throughput monitoring."
+
+**Technical Deep-Dive Topics**:
+- Grafana provisioning architecture and dashboard-as-code implementation
+- Advanced PromQL queries: histogram quantiles, rate calculations, aggregation functions
+- Container orchestration with persistent volumes and service discovery
+- Metrics visualization best practices: thresholds, color coding, panel types
+- Observability stack integration: Prometheus + Grafana + exporters
+- Dashboard performance optimization and refresh rate configuration
