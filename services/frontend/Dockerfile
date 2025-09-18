@@ -22,7 +22,7 @@ RUN addgroup -g 1001 -S appuser && \
 COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Change ownership of nginx files to non-root user
 RUN chown -R appuser:appuser /usr/share/nginx/html && \

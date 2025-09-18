@@ -1032,7 +1032,7 @@ Goal: Move infra to IaC, add secrets management, and implement safer deployment 
 
 **Progress Update - September 18, 2025**
 
-**✅ Action Item 1: Non-Root User Implementation**
+** Action Item 1: Non-Root User Implementation**
 - **Modified** `services/backend/Dockerfile` - Added `appuser` with proper ownership
 - **Modified** `services/etl/Dockerfile` - Added `appuser` with proper ownership  
 - **Modified** `services/frontend/Dockerfile` - Added `appuser` with Alpine-specific user creation
@@ -1050,7 +1050,7 @@ Goal: Move infra to IaC, add secrets management, and implement safer deployment 
 
 **Next Steps:** Multi-stage builds for production optimization, secrets management, TLS implementation.
 
-**✅ Action Item 2: Multi-Stage Build Implementation**
+**Action Item 2: Multi-Stage Build Implementation**
 - **Modified** `services/backend/Dockerfile` - Added builder/production stages, eliminated build tools from final image
 - **Modified** `services/etl/Dockerfile` - Added builder/production stages, copied only runtime dependencies
 - **Modified** `services/frontend/Dockerfile` - Added Node.js builder stage + nginx production serving
@@ -1068,3 +1068,58 @@ Goal: Move infra to IaC, add secrets management, and implement safer deployment 
 - Frontend: `npm run build` creates optimized static bundle served by nginx
 - Custom nginx config handles React Router client-side routing
 - Maintained non-root user security across all stages
+
+**Action Item 3: Environment Variables & Secrets Extraction + Production/Development Setup**
+- **Modified** `infrastructure/docker-compose/docker-compose.yml` - Comprehensive environment variable extraction (60+ variables)
+- **Created** `infrastructure/docker-compose/docker-compose.dev.yml` - Development overrides for hot reload workflow
+- **Updated** `.env` and `.env.example` - Complete configuration templates
+- **Fixed** Frontend production nginx configuration with security hardening
+
+**Comprehensive Environment Variable Extraction:**
+- **Database Credentials**: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (NO hardcoded defaults)
+- **Connection Strings**: `DATABASE_URL`, `REDIS_URL` (required environment variables)
+- **Port Mappings**: All host/container ports configurable (`POSTGRES_HOST_PORT=5433`, `BACKEND_HOST_PORT=8000`, etc.)
+- **Container Names**: All service containers configurable (`POSTGRES_CONTAINER_NAME=anime_postgres`, etc.)
+- **Docker Images**: All image versions configurable (`POSTGRES_IMAGE=postgres:15`, `REDIS_IMAGE=redis:7-alpine`, etc.)
+- **Monitoring Security**: `GRAFANA_ADMIN_PASSWORD` required (no default)
+- **API Configuration**: `JIKAN_BASE_URL`, `REACT_APP_API_URL`, `JIKAN_RATE_LIMIT_DELAY` externalized
+
+**Production vs Development Docker Compose Architecture:**
+- **Production Mode**: `docker compose --profile scheduler up`
+  - Multi-stage optimized Dockerfiles (smaller images, no build tools)
+  - nginx serving React static files (gzip compression, security headers)
+  - Production Python containers (no --reload, minimal dependencies)
+  - Optimized for performance and security
+  
+- **Development Mode**: `docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile scheduler up`
+  - Hot reload enabled (`uvicorn --reload`, `npm start`)
+  - Volume mounts for live code synchronization
+  - Development-friendly debugging and logging
+  - Named volume for node_modules (avoids permission conflicts)
+
+**Technical Implementation:**
+- **Zero hardcoded secrets** in version control - all sensitive values in `.env` (gitignored)
+- **Complete nginx.conf** for production frontend with React Router support
+- **Permission-safe volume mounts** using named volumes for node_modules
+- **Service boundary isolation** maintained per copilot instructions
+- **Single .env file** shared between prod/dev modes (no duplication)
+
+**File Structure:**
+```
+├── .env.example                    # Template (committed to git)
+├── .env                           # Real values (gitignored)  
+└── infrastructure/docker-compose/
+    ├── .env → ../../.env          # Symlink for Docker Compose
+    ├── docker-compose.yml         # Production-optimized
+    ├── docker-compose.dev.yml     # Development overrides
+    └── .gitignore                 # Ignores local .env
+```
+
+**Security Achievements:**
+- **Zero plaintext secrets** in version control
+- **Required environment variables** (no fallback defaults for sensitive data)  
+- **Non-root container execution** maintained across both modes
+- **Production-ready nginx** with security headers and gzip compression
+- **Development workflow preserved** with hot reload and volume mounts
+
+**Cloud Deployment Ready**: Complete parameterization enables seamless transition to Kubernetes/Helm with external secrets management.

@@ -1,18 +1,18 @@
 services:
   postgres:
-    image: postgres:15
-    container_name: anime_postgres
+    image: ${POSTGRES_IMAGE:-postgres:15}
+    container_name: ${POSTGRES_CONTAINER_NAME:-anime_postgres}
     environment:
-      POSTGRES_DB: anime_dashboard
-      POSTGRES_USER: anime_user
-      POSTGRES_PASSWORD: anime_password
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data # Persist DB data
       - ../sql/init.sql:/docker-entrypoint-initdb.d/init.sql # Run init script on boot
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U anime_user -d anime_dashboard"] # Check if DB is ready
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"] # Check if DB is ready
       interval: 5s # Run check every 5 seconds
       timeout: 5s # Consider it failed if it takes longer than 5 seconds
       retries: 5 # Try 5 times before marking container as unhealthy
@@ -21,10 +21,10 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
-    container_name: anime_redis
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    container_name: ${REDIS_CONTAINER_NAME:-anime_redis}
     expose:
-      - "6379"
+      - "${REDIS_PORT:-6379}"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -40,21 +40,18 @@ services:
     build:
       context: ../../services/backend
       dockerfile: Dockerfile
-    container_name: anime_backend
+    container_name: ${BACKEND_CONTAINER_NAME:-anime_backend}
     environment:
-      - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
-      - REDIS_URL=redis://redis:6379
-      - TZ=UTC  # Add timezone for consistency
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - TZ=${TZ:-UTC}
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:-8000}:${BACKEND_CONTAINER_PORT:-8000}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ../../services/backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - anime-network
     restart: unless-stopped
@@ -63,19 +60,17 @@ services:
     build:
       context: ../../services/etl
       dockerfile: Dockerfile
-    container_name: anime_etl
+    container_name: ${ETL_CONTAINER_NAME:-anime_etl}
     environment:
-      - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
-      - REDIS_URL=redis://redis:6379
-      - JIKAN_BASE_URL=https://api.jikan.moe/v4
-      - TZ=UTC  # Add timezone for consistency
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - JIKAN_BASE_URL=${JIKAN_BASE_URL:-https://api.jikan.moe/v4}
+      - TZ=${TZ:-UTC}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ../../services/etl:/app
     # ETL will run as a cron job or on-demand, not continuously
     profiles:
       - etl # "docker compose --profile etl up" to run
@@ -87,15 +82,15 @@ services:
     build:
       context: ../../services/etl
       dockerfile: Dockerfile
-    container_name: anime_etl_scheduler
+    container_name: ${ETL_SCHEDULER_CONTAINER_NAME:-anime_etl_scheduler}
     environment:
-      - DATABASE_URL=postgresql://anime_user:anime_password@postgres:5432/anime_dashboard
-      - REDIS_URL=redis://redis:6379/0
-      - JIKAN_BASE_URL=https://api.jikan.moe/v4
-      - JIKAN_RATE_LIMIT_DELAY=1.0
-      - TZ=UTC  # Critical: scheduler needs timezone
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - JIKAN_BASE_URL=${JIKAN_BASE_URL:-https://api.jikan.moe/v4}
+      - JIKAN_RATE_LIMIT_DELAY=${JIKAN_RATE_LIMIT_DELAY:-1.0}
+      - TZ=${TZ:-UTC}
     expose:
-      - "9090"  # Expose ETL metrics port on scheduler service
+      - "${ETL_METRICS_PORT:-9090}"  # Expose ETL metrics port on scheduler service
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,11 +109,11 @@ services:
     build:
       context: ../../services/frontend
       dockerfile: Dockerfile
-    container_name: anime_frontend
+    container_name: ${FRONTEND_CONTAINER_NAME:-anime_frontend}
     environment:
-      - REACT_APP_API_URL=http://localhost:8000  # Browser needs localhost, not service name
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
     ports:
-      - "3000:3000"
+      - "${FRONTEND_HOST_PORT:-3000}:${FRONTEND_CONTAINER_PORT:-3000}"
     depends_on:
       - backend
     volumes:
@@ -132,12 +127,12 @@ services:
 
   # PostgreSQL Metrics Exporter
   postgres-exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:latest
-    container_name: anime_postgres_exporter
+    image: ${POSTGRES_EXPORTER_IMAGE:-quay.io/prometheuscommunity/postgres-exporter:latest}
+    container_name: ${POSTGRES_EXPORTER_CONTAINER_NAME:-anime_postgres_exporter}
     environment:
-      DATA_SOURCE_NAME: "postgresql://anime_user:anime_password@postgres:5432/anime_dashboard?sslmode=disable"
+      DATA_SOURCE_NAME: "${DATABASE_URL}?sslmode=disable"
     expose:
-      - "9187"
+      - "${POSTGRES_EXPORTER_PORT:-9187}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,13 +144,13 @@ services:
 
   # Redis Metrics Exporter  
   redis-exporter:
-    image: oliver006/redis_exporter:latest
-    container_name: anime_redis_exporter
+    image: ${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:latest}
+    container_name: ${REDIS_EXPORTER_CONTAINER_NAME:-anime_redis_exporter}
     environment:
       REDIS_ADDR: "redis:6379"
       REDIS_PASSWORD: ""  # No password set for development
     expose:
-      - "9121"
+      - "${REDIS_EXPORTER_PORT:-9121}"
     depends_on:
       redis:
         condition: service_healthy
@@ -167,10 +162,10 @@ services:
 
   # Prometheus Monitoring Server
   prometheus:
-    image: prom/prometheus:latest
-    container_name: anime_prometheus
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    container_name: ${PROMETHEUS_CONTAINER_NAME:-anime_prometheus}
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
     volumes:
       - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -195,12 +190,12 @@ services:
 
   # Grafana Dashboard & Visualization Platform
   grafana:
-    image: grafana/grafana:latest
-    container_name: anime_grafana
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    container_name: ${GRAFANA_CONTAINER_NAME:-anime_grafana}
     ports:
-      - "3001:3000"  # Use 3001 to avoid conflict with frontend
+      - "${GRAFANA_HOST_PORT:-3001}:3000"  # Use 3001 to avoid conflict with frontend
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
       - GF_RENDERING_SERVER_URL=http://renderer:8081/render
@@ -221,10 +216,10 @@ services:
 
   # Loki Log Aggregation System
   loki:
-    image: grafana/loki:latest
-    container_name: anime_loki
+    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    container_name: ${LOKI_CONTAINER_NAME:-anime_loki}
     ports:
-      - "3100:3100"
+      - "${LOKI_HOST_PORT:-3100}:3100"
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - loki_data:/loki
@@ -236,8 +231,8 @@ services:
 
   # Promtail Log Collection Agent  
   promtail:
-    image: grafana/promtail:latest
-    container_name: anime_promtail
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:latest}
+    container_name: ${PROMTAIL_CONTAINER_NAME:-anime_promtail}
     volumes:
       - /var/log:/var/log:ro
       - ../observability/promtail:/etc/promtail:ro

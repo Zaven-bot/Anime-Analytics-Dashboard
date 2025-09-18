@@ -1,0 +1,34 @@
+# Development overrides for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile scheduler --profile observability up
+
+services:
+  frontend:
+    # Override production nginx container with Node.js development server
+    image: node:18-alpine
+    build: ~  # Disable build from main compose
+    working_dir: /app
+    volumes:
+      - ../../services/frontend:/app
+      - node_modules_volume:/app/node_modules  # Use named volume to avoid permission issues
+    command: sh -c "npm ci && npm start"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    
+  backend:
+    # Add volume mount for hot reload
+    volumes:
+      - ../../services/backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    
+  etl:
+    # Add volume mount for development
+    volumes:
+      - ../../services/etl:/app
+      
+  etl-scheduler:
+    # Add volume mount for development
+    volumes:
+      - ../../services/etl:/app
+
+volumes:
+  node_modules_volume:
