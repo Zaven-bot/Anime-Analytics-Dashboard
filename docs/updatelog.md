@@ -1021,3 +1021,31 @@ With comprehensive observability in place, Week 4 will focus on:
 - Performance optimization based on observability insights
 
 **Current Status**: Full observability stack operational with metrics, logs, and traces integrated into Grafana dashboards. SLI baselines established for SLO implementation.
+
+---
+
+## Week 5 — Infrastructure & Security Hardening (IaC, Secrets, Deployment Strategies) - IN PROGRESS
+
+Goal: Move infra to IaC, add secrets management, and implement safer deployment patterns.
+
+### Security Hardening - Day 1 — Container Security
+
+**Progress Update - September 18, 2025**
+
+**✅ Action Item 1: Non-Root User Implementation**
+- **Modified** `services/backend/Dockerfile` - Added `appuser` with proper ownership
+- **Modified** `services/etl/Dockerfile` - Added `appuser` with proper ownership  
+- **Modified** `services/frontend/Dockerfile` - Added `appuser` with Alpine-specific user creation
+
+**Security Improvements:**
+- All containers now run with dedicated non-privileged users (UID 1001)
+- Application files properly owned by `appuser:appuser`
+- Eliminated root privilege escalation attack surface
+- Used `--chown` flag during COPY operations for efficient ownership transfer
+
+**Technical Details:**
+- Backend/ETL: Standard Linux `groupadd`/`useradd` commands
+- Frontend: Alpine-specific `addgroup`/`adduser` commands for lightweight containers
+- Maintained Docker layer caching optimization by placing user creation early
+
+**Next Steps:** Multi-stage builds for production optimization, secrets management, TLS implementation.
