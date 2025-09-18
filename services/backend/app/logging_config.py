@@ -4,7 +4,9 @@ Shared logging configuration for all backend services
 """
 
 import logging
+
 import structlog
+
 
 def setup_logging(service_name: str = "backend"):
     """

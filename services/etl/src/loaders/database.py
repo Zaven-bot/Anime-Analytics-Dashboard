@@ -7,7 +7,6 @@ import time
 from datetime import date
 from typing import Any, Dict, List
 
-from ..logging_config import setup_logging
 from sqlalchemy import (
     DECIMAL,
     JSON,
@@ -27,6 +26,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from ..config import get_settings
+from ..logging_config import setup_logging
 from ..models.jikan import AnimeSnapshot
 
 # Only import ETL metrics if we're running in ETL context (not backend)

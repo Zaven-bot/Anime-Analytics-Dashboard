@@ -1049,3 +1049,22 @@ Goal: Move infra to IaC, add secrets management, and implement safer deployment 
 - Maintained Docker layer caching optimization by placing user creation early
 
 **Next Steps:** Multi-stage builds for production optimization, secrets management, TLS implementation.
+
+**✅ Action Item 2: Multi-Stage Build Implementation**
+- **Modified** `services/backend/Dockerfile` - Added builder/production stages, eliminated build tools from final image
+- **Modified** `services/etl/Dockerfile` - Added builder/production stages, copied only runtime dependencies
+- **Modified** `services/frontend/Dockerfile` - Added Node.js builder stage + nginx production serving
+- **Created** `services/frontend/nginx.conf` - Production nginx configuration with React Router support
+
+**Production Optimization Benefits:**
+- **Smaller Images**: Eliminated build tools (gcc, npm) from production containers
+- **Frontend Optimization**: Static files served by nginx instead of Node.js dev server
+- **Better Caching**: Separated build dependencies from runtime layers
+- **Enhanced Security**: Minimal attack surface with only essential runtime packages
+- **Performance**: nginx serving static assets with gzip compression and caching headers
+
+**Technical Implementation:**
+- Python services: Used `--user` pip install, copied only `.local` to production stage
+- Frontend: `npm run build` creates optimized static bundle served by nginx
+- Custom nginx config handles React Router client-side routing
+- Maintained non-root user security across all stages

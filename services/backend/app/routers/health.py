@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from ..logging_config import setup_logging
 from fastapi import APIRouter, HTTPException, Response
 
 from ..database import test_database_connection
+from ..logging_config import setup_logging
 from ..metrics import get_metrics_content
 from ..services.redis_client import get_redis_client
 

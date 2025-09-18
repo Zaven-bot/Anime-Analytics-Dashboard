@@ -5,9 +5,9 @@ Shared Redis client with FastAPI lifecycle management
 from typing import Optional
 
 import redis.asyncio as redis
-from ..logging_config import setup_logging
 
 from ..database import config
+from ..logging_config import setup_logging
 
 logger = setup_logging("backend-services-redis_client")
 

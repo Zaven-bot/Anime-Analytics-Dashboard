@@ -5,11 +5,11 @@ FastAPI application that serves analytics data with direct database access.
 
 from contextlib import asynccontextmanager
 
-from .logging_config import setup_logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import config, test_database_connection
+from .logging_config import setup_logging
 from .middleware import MetricsMiddleware
 
 # Import routers

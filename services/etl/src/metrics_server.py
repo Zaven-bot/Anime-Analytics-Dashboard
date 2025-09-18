@@ -7,8 +7,9 @@ import threading
 import time
 from typing import Optional
 
-from .logging_config import setup_logging
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, start_http_server
+
+from .logging_config import setup_logging
 
 logger = setup_logging("etl-metrics-server")
 

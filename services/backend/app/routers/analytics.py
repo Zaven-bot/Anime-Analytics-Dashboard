@@ -3,9 +3,9 @@ Analytics API endpoints
 Serves aggregated analytics data from the ETL pipeline
 """
 
-from ..logging_config import setup_logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ..logging_config import setup_logging
 from ..models.responses import (
     AnimeItem,
     DatabaseStatsResponse,

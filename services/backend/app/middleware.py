@@ -9,11 +9,11 @@ import uuid
 from typing import Callable
 
 import structlog
-from .logging_config import setup_logging
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from .logging_config import setup_logging
 from .metrics import metrics
 
 logger = setup_logging("backend-middleware")
@@ -22,7 +22,7 @@ logger = setup_logging("backend-middleware")
 class MetricsMiddleware(BaseHTTPMiddleware):
     """
     Middleware to automatically collect HTTP request metrics and add request tracing.
-    
+
     Features:
     - Tracks request duration, status codes, and endpoints for Prometheus
     - Generates correlation IDs for distributed tracing
@@ -36,21 +36,21 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request, add correlation ID, collect metrics, and log structured data"""
         start_time = time.time()
-        
+
         # Generate or extract correlation ID
         request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
-        
+
         # Add request ID to request state for access in route handlers
         request.state.request_id = request_id
-        
+
         # Configure structured logging context with request metadata
         structlog.contextvars.bind_contextvars(
             request_id=request_id,
             method=request.method,
             path=request.url.path,
-            client_ip=request.client.host if request.client else "unknown"
+            client_ip=request.client.host if request.client else "unknown",
         )
-        
+
         # Log request start
         logger.info(
             "request_started",
@@ -58,7 +58,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             method=request.method,
             path=request.url.path,
             user_agent=request.headers.get("user-agent", "unknown"),
-            client_ip=request.client.host if request.client else "unknown"
+            client_ip=request.client.host if request.client else "unknown",
         )
 
         # Extract request info
@@ -88,7 +88,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                 status_code=status_code,
                 duration=duration,
                 user_agent=request.headers.get("user-agent", "unknown"),
-                response_size=response.headers.get("content-length", "unknown")
+                response_size=response.headers.get("content-length", "unknown"),
             )
 
             return response
@@ -100,13 +100,13 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
             # Log error with correlation context
             logger.error(
-                "request_error", 
+                "request_error",
                 request_id=request_id,
-                method=method, 
-                endpoint=endpoint, 
-                duration=duration, 
+                method=method,
+                endpoint=endpoint,
+                duration=duration,
                 error=str(e),
-                error_type=type(e).__name__
+                error_type=type(e).__name__,
             )
 
             raise

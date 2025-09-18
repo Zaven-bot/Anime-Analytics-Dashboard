@@ -6,9 +6,9 @@ Transforms Jikan API data into database-ready format with validation.
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from ..logging_config import setup_logging
 from pydantic import ValidationError
 
+from ..logging_config import setup_logging
 from ..models.jikan import AnimeSnapshot, JikanAnime
 
 logger = setup_logging("etl-transformers-anime")
