@@ -803,7 +803,7 @@ scrape_configs:
   ```
 - **Result**: Clean container restart with proper datasource provisioning and dashboard connectivity
 
-**✅ Comprehensive Application Performance Dashboard**
+**Comprehensive Application Performance Dashboard**
 Created advanced dashboard leveraging all available application metrics:
 
 **HTTP Performance Monitoring:**
@@ -916,3 +916,108 @@ docker compose --profile observability --profile scheduler up -d
 - Metrics visualization best practices: thresholds, color coding, panel types
 - Observability stack integration: Prometheus + Grafana + exporters
 - Dashboard performance optimization and refresh rate configuration
+
+...existing content...
+
+## Week 3 Day 5 — Structured Logging & Loki Integration - COMPLETED
+
+**Goal**: Deploy Loki for log aggregation, enhance structured logging with correlation IDs, create log analysis dashboards, and establish SLI/SLO baselines.
+
+### Tasks Completed
+
+**Loki & Promtail Deployment**
+- Added Loki (port 3100) and Promtail to Docker Compose observability profile
+- Configured Promtail to collect logs from all Docker containers
+- Created comprehensive Promtail configuration for service-specific log parsing
+- Integrated Loki as Grafana datasource with proper provisioning
+
+**Enhanced Structured Logging**
+- ~~Already implemented structured JSON logging across all services using `setup_logging()`~~
+- **Added correlation ID middleware** for request tracing in FastAPI
+- Enhanced middleware with consistent contextual fields (method, path, status, duration)
+- Fixed SQLAlchemy import issue introduced during logging refactor
+
+**Log Analysis Infrastructure**
+- Created comprehensive log analysis dashboard in Grafana
+- Implemented log volume monitoring by service and log level
+- Added error log exploration with filtering capabilities  
+- Created correlation views between metrics and logs
+- ETL job execution log analysis with structured queries
+
+**SLI/SLO Baseline Documentation**
+- Documented current performance baselines from Week 3 metrics
+- Established API SLIs: availability (99.5%), latency (p95 < 500ms), error rate (<5%)
+- Defined ETL SLIs: success rate (95%), job duration monitoring
+- Created infrastructure SLIs: cache hit rate (>70%), database performance
+- Prepared alerting threshold proposals for Week 4 implementation
+
+### Technical Implementation
+
+**Correlation ID Implementation:**
+```python
+# Enhanced middleware with request tracing
+@app.middleware("http")  
+async def add_correlation_id(request: Request, call_next):
+    request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+    # Bind to structlog context for automatic inclusion
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+```
+
+**Log Pipeline Architecture:**
+- **Application logs**: Structured JSON via structlog → stdout
+- **Container logs**: Docker log driver → Promtail
+- **Log aggregation**: Promtail → Loki → Grafana
+- **Service isolation**: Separate log streams per service with consistent labeling
+
+**SLI/SLO Framework:**
+```yaml
+api_availability_slo:
+  objective: 99.5%
+  window: 30d
+  error_budget: 3.6_hours
+  burn_rate_alerts: [2x, 5x, 10x]
+```
+
+### Architecture Achievements
+
+**Production-Ready Observability Stack:**
+1. **Three-pillar observability**: Metrics (Prometheus), Logs (Loki), Traces (correlation IDs)
+2. **Unified Grafana interface**: Single pane of glass for metrics and logs
+3. **Service correlation**: Request IDs enable cross-service debugging
+4. **Structured data**: All logs are JSON with consistent schema
+
+**Operational Excellence:**
+- Comprehensive monitoring covering all system layers
+- Error budget methodology for deployment safety
+- Automated alerting strategy (critical vs warning)
+- Historical trending for capacity planning
+
+### Interview Storytelling
+
+**Challenge**: "How do you implement comprehensive observability in a microservices architecture?"
+
+**Approach**: "I implemented the three pillars of observability—metrics, logs, and traces—using industry-standard tools integrated into a cohesive monitoring strategy."
+
+**Implementation**: 
+- Prometheus for real-time metrics collection across all services
+- Loki for centralized log aggregation with structured JSON format  
+- Correlation IDs for request tracing across service boundaries
+- Grafana dashboards unifying metrics and logs for comprehensive system visibility
+
+**Outcome**: Complete observability stack enabling proactive monitoring, faster incident resolution, and data-driven SLO management.
+
+**Technical Deep-Dive Topics:**
+- Log aggregation patterns in containerized environments
+- Correlation ID propagation across service boundaries  
+- SLI/SLO framework design and error budget management
+- Structured logging schema design for operational queries
+
+### Next Steps: Week 4 — Resilience & Alerting
+
+With comprehensive observability in place, Week 4 will focus on:
+- Implementing alerting rules based on established SLIs
+- Circuit breaker patterns for API resilience
+- Chaos engineering for failure mode validation
+- Performance optimization based on observability insights
+
+**Current Status**: Full observability stack operational with metrics, logs, and traces integrated into Grafana dashboards. SLI baselines established for SLO implementation.

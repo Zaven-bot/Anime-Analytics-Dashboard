@@ -1,0 +1,138 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker container logs
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Only scrape containers with anime_ prefix (our services)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(anime_.*)'
+        target_label: container_name
+        replacement: '${1}' 
+      
+      # Keep all anime containers for now (debug)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(anime_.*)'
+        action: keep
+
+      # Extract service name from container name (anime_backend -> backend)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/anime_(.*)'
+        target_label: service
+        replacement: '${1}'
+      
+      # Add compose project and network labels
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: compose_project
+      
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']  
+        target_label: compose_service
+      
+      # Set the log path for Docker containers
+      - source_labels: ['__meta_docker_container_id']
+        target_label: __path__
+        replacement: /var/lib/docker/containers/$1/$1-json.log
+
+    # Pipeline stages to parse and structure the logs
+    pipeline_stages:
+      # First stage: Parse Docker's JSON log format
+      - json:
+          expressions:
+            message: log
+            docker_timestamp: time
+            stream: stream
+      
+      # Second stage: Handle mixed log formats - structured logs first
+      - match:
+          selector: '{container_name=~"anime_.*"}'
+          stages:
+            # Try to match structured JSON logs (with timestamp prefix)
+            - regex:
+                expression: '^(?P<log_timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<log_logger>[\w.-]+) - (?P<log_level>\w+) - (?P<json_payload>\{.*\})$'
+                source: message
+            
+            # For structured JSON logs, parse the JSON payload
+            - match:
+                selector: '{json_payload!=""}'
+                stages:
+                  - json:
+                      expressions:
+                        level: level
+                        logger: logger
+                        event: event
+                        request_id: request_id
+                        method: method
+                        path: path
+                        endpoint: endpoint
+                        status_code: status_code
+                        duration: duration
+                        error: error
+                        cache_key: cache_key
+                        job_type: job_type
+                        app_timestamp: timestamp
+                        user_agent: user_agent
+                        client_ip: client_ip
+                        response_size: response_size
+                        port: port
+                        database: database
+                        jikan_api: jikan_api
+                        connections: connections
+                        daily_full_run: daily_full_run
+                      source: json_payload
+                      drop_malformed_json: true  # Skip malformed JSON
+                  
+                  # Add labels for structured fields
+                  - labels:
+                      level:
+                      service:
+                      container_name:
+                      request_id:
+                      job_type:
+                      event:
+                      
+                  # Use application timestamp if available
+                  - timestamp:
+                      source: app_timestamp
+                      format: RFC3339Nano
+                      fallback_formats:
+                        - RFC3339
+                        - "2006-01-02T15:04:05.999999999Z07:00"
+                        - "2006-01-02T15:04:05Z07:00"
+      
+      # Third stage: Handle unstructured logs (Uvicorn access logs)
+      - match:
+          selector: '{container_name="anime_backend"}'
+          stages:
+            # Match Uvicorn INFO logs that don't have JSON
+            - regex:
+                expression: '^INFO:\s+(?P<client_ip>[\d.]+):(?P<client_port>\d+) - "(?P<method>\w+) (?P<path>[^"]+) HTTP/[\d.]+" (?P<status_code>\d+)'
+                source: message
+            
+            # Add labels for unstructured access logs
+            - labels:
+                level: info
+                service:
+                container_name:
+                method:
+                status_code:
+
+  # System logs (optional - for host system monitoring)
+  - job_name: system-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system-logs
+          service: system
+          __path__: /var/log/syslog*
