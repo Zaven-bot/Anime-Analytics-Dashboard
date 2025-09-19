@@ -159,30 +159,30 @@
     
     ---
     
-    ## Week 5 — Infra & Security Hardening (IaC, Secrets, Deployment Strategies)
-    
-    **Goal:** Move infra to IaC, add secrets management, and implement safer deployment patterns.
-    
-    **Day-by-day:**
-    
-    - **Day 1:** Terraform scripts for cloud infra (managed Postgres, Redis if using cloud).
-    - **Day 2:** Helm charts for app; add values for staging/production.
-    - **Day 3:** Secrets management: Vault or SealedSecrets/Kubernetes Secrets; remove plaintext secrets.
-    - **Day 4:** Add TLS via cert-manager or managed LB certs; enforce HTTPS.
-    - **Day 5:** Add safer deploy patterns: blue/green or canary and automated rollback on failed health checks.
-    
-    **Deliverables:**
-    
-    - Terraform + Helm artifacts in repo.
-    - Secrets management approach in place.
-    - Canary/blue-green deployment configured.
-    
-    **Acceptance criteria:**
-    
-    - Infrastructure can be provisioned reproducibly.
-    - Secrets are not stored in plaintext in repo.
-    - Canary deploy works and rollbacks proven in a test.
-    
+    ## Week 5 — Kubernetes & Security Hardening (Raw K8s, Secrets, Deployment Strategies)
+    Goal: Deploy to Kubernetes using raw manifests, implement secrets management, and practice CKAD-relevant deployment patterns.
+    Day-by-day:
+
+    **Day 1**: Multi-stage Dockerfiles for production optimization; Kubernetes cluster setup (minikube/kind locally or cloud EKS/GKE).
+    **Day 2**: Core Kubernetes manifests - Deployments, Services, and ConfigMaps for all services; practice CKAD resource creation.
+    **Day 3**: Secrets management using Kubernetes Secrets; remove plaintext secrets; implement environment-specific configurations.
+    **Day 4**: Ingress controllers for external access; TLS termination; NetworkPolicies for service segmentation.
+    **Day 5**: StatefulSets for databases; PersistentVolumes for data; rolling updates and rollback strategies.
+
+    **Deliverables**:
+    - Production-ready Dockerfiles with multi-stage builds and non-root users.
+    - Complete set of Kubernetes YAML manifests for all services.
+    - Secrets management using native Kubernetes resources.
+    - Working Ingress with TLS termination.
+    - StatefulSet configurations for persistent data.
+
+    **Acceptance criteria**:
+
+    - All services deploy successfully to Kubernetes cluster.
+    - No plaintext secrets in repository or manifests.
+    - Rolling updates work without downtime.
+    - Database data persists across pod restarts.
+    - External traffic reaches services through Ingress.
     ---
     
     ## Week 6 — Polish, Documentation, Portfolio & Interview Prep

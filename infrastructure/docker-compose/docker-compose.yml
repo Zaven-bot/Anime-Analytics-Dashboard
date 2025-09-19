@@ -96,8 +96,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ../../services/etl:/app
     command: python scheduler.py --daemon
     restart: unless-stopped
     profiles:
@@ -116,11 +114,6 @@ services:
       - "${FRONTEND_HOST_PORT:-3000}:${FRONTEND_CONTAINER_PORT:-3000}"
     depends_on:
       - backend
-    volumes:
-      - ../../services/frontend:/app
-      - /app/node_modules # Overrides host node_modules to let container manage its own
-    command: npm start # Start React development server
-    # npm run build # Uncomment for prod build
     networks:
       - anime-network
     restart: unless-stopped
